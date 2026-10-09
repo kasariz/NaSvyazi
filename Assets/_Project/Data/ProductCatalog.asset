@@ -1,0 +1,21 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 0ffa0b8a2a23ea3439e142a6f216fd06, type: 3}
+  m_Name: ProductCatalog
+  m_EditorClassIdentifier: Assembly-CSharp::NaSvyazi.Products.ProductCatalog
+  products:
+  - {fileID: 11400000, guid: ce6fa17695e556a41917f42d5b3dbcca, type: 2}
+  - {fileID: 11400000, guid: 1e10961f5a7e8174792282be508ed796, type: 2}
+  - {fileID: 11400000, guid: f853dc0282a54af4f82b54b7082c0f36, type: 2}
+  - {fileID: 11400000, guid: c55b1a0fd1da4d04f9c891f7c3e1270c, type: 2}
+  - {fileID: 11400000, guid: e57be41a3177341448fd12f0cc1a711e, type: 2}
+  - {fileID: 11400000, guid: a0294652281523b42a27c576476e4a09, type: 2}
