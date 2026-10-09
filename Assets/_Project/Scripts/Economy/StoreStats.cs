@@ -24,6 +24,19 @@ namespace NaSvyazi.Economy
         /// <summary>Ушли без покупок.</summary>
         public static int LeftEmptyHanded;
 
+        /// <summary>Оплаты картой и наличными.</summary>
+        public static int CardPayments;
+        public static int CashPayments;
+
+        /// <summary>Сколько раз игрок выдал лишнюю сдачу и на какую сумму.</summary>
+        public static int ChangeErrors;
+        public static int ChangeLoss;
+
+        /// <summary>Консультации по тарифам: лучший вариант / подходящий, но дороже / неподходящий.</summary>
+        public static int ConsultationsBest;
+        public static int ConsultationsAcceptable;
+        public static int ConsultationsFailed;
+
         public static void ResetDay()
         {
             CustomersServed = 0;
@@ -32,6 +45,13 @@ namespace NaSvyazi.Economy
             PriceRefusals = 0;
             LeftQueue = 0;
             LeftEmptyHanded = 0;
+            CardPayments = 0;
+            CashPayments = 0;
+            ChangeErrors = 0;
+            ChangeLoss = 0;
+            ConsultationsBest = 0;
+            ConsultationsAcceptable = 0;
+            ConsultationsFailed = 0;
         }
     }
 }

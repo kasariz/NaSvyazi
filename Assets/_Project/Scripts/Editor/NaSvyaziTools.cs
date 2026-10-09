@@ -5,6 +5,7 @@ using NaSvyazi.Economy;
 using NaSvyazi.Interaction;
 using NaSvyazi.Products;
 using NaSvyazi.Store;
+using NaSvyazi.Tariffs;
 using NaSvyazi.UI;
 using TMPro;
 using Unity.AI.Navigation;
@@ -122,6 +123,100 @@ namespace NaSvyazi.EditorTools
             MarkSceneDirty();
             Debug.Log("[На связи] Итерация 4: покупатели, цены, касса, навигация, дверь и улица добавлены. Сохраните сцену (Ctrl+S).");
         }
+
+        [MenuItem("На связи/Подготовить сцену (итерация 5)", priority = 3)]
+        private static void PrepareIteration5()
+        {
+            GameObject systems = GameObject.Find("GameSystems");
+            CashRegister register = Object.FindAnyObjectByType<CashRegister>();
+            CustomerSpawner spawner = Object.FindAnyObjectByType<CustomerSpawner>();
+            if (systems == null || register == null || spawner == null)
+            {
+                Debug.LogError("[На связи] Сначала выполните «Подготовить сцену (итерация 4)».");
+                return;
+            }
+
+            TariffCatalog tariffs = CreateTariffCatalog();
+
+            GetOrAdd<ReputationManager>(systems);
+            ChangeUI changeUI = GetOrAdd<ChangeUI>(systems);
+            ConsultationUI consultationUI = GetOrAdd<ConsultationUI>(systems);
+
+            SetReference(register, "changeUI", changeUI);
+            SetReference(register, "consultationUI", consultationUI);
+            SetReference(register, "tariffCatalog", tariffs);
+            SetReference(spawner, "tariffCatalog", tariffs);
+
+            Selection.activeGameObject = systems;
+            MarkSceneDirty();
+            Debug.Log("[На связи] Итерация 5: касса со сканированием и сдачей, консультации по тарифам, репутация. Сохраните сцену (Ctrl+S).");
+        }
+
+        private const string TariffsFolder = "Assets/_Project/Data/Tariffs";
+
+        /// <summary>Вымышленная линейка тарифов и типовые запросы клиентов.</summary>
+        private static TariffCatalog CreateTariffCatalog()
+        {
+            EnsureFolder(TariffsFolder);
+
+            List<TariffData> list = new List<TariffData>
+            {
+                CreateTariff("tablet", "Для планшета", 300, 30, 0,
+                    "Только интернет: для планшета, модема или второго устройства."),
+                CreateTariff("basic", "Базовый", 350, 10, 300,
+                    "Недорогой тариф на каждый день."),
+                CreateTariff("talk", "Разговорный", 400, 5, 1000,
+                    "Много минут для тех, кто любит поговорить."),
+                CreateTariff("internet", "Интернет+", 550, 40, 300,
+                    "Много интернета для соцсетей и видео."),
+                CreateTariff("max", "Максимум", 850, -1, 800,
+                    "Безлимитный интернет и много минут."),
+            };
+
+            string path = "Assets/_Project/Data/TariffCatalog.asset";
+            TariffCatalog catalog = AssetDatabase.LoadAssetAtPath<TariffCatalog>(path);
+            if (catalog == null)
+            {
+                catalog = ScriptableObject.CreateInstance<TariffCatalog>();
+                AssetDatabase.CreateAsset(catalog, path);
+            }
+
+            catalog.tariffs = list;
+            catalog.needs = new List<TariffNeed>
+            {
+                Need("Мне нужен интернет для соцсетей и видео, звоню редко", 30, 100),
+                Need("Почти не пользуюсь интернетом, но очень много разговариваю", 2, 800),
+                Need("Хочу самый дешёвый тариф — только звонить и иногда мессенджеры", 1, 100),
+                Need("Работаю в дороге, нужен безлимитный интернет и звонки", -1, 300),
+                Need("Нужна SIM-карта для планшета, звонить с неё не буду", 20, 0),
+                Need("Нужно побольше и интернета, и минут — работаю с телефона", 30, 600),
+                Need("Ребёнку в школу: немного интернета и звонки родителям", 5, 200),
+            };
+
+            EditorUtility.SetDirty(catalog);
+            AssetDatabase.SaveAssets();
+            return catalog;
+        }
+
+        private static TariffData CreateTariff(string id, string name, int fee, int gb, int minutes, string description)
+        {
+            string path = $"{TariffsFolder}/Tariff_{id}.asset";
+            TariffData existing = AssetDatabase.LoadAssetAtPath<TariffData>(path);
+            if (existing != null) return existing;
+
+            TariffData t = ScriptableObject.CreateInstance<TariffData>();
+            t.id = id;
+            t.displayName = name;
+            t.monthlyFee = fee;
+            t.gigabytes = gb;
+            t.minutes = minutes;
+            t.description = description;
+            AssetDatabase.CreateAsset(t, path);
+            return t;
+        }
+
+        private static TariffNeed Need(string request, int minGb, int minMinutes) =>
+            new TariffNeed { request = request, minGigabytes = minGb, minMinutes = minMinutes };
 
         /// <summary>
         /// Расставляет окружение и основные объекты по эталонным мировым координатам.

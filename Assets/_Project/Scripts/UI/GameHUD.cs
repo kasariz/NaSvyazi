@@ -16,6 +16,7 @@ namespace NaSvyazi.UI
         [SerializeField] private float flashTime = 0.6f;
 
         private TextMeshProUGUI moneyText;
+        private TextMeshProUGUI reputationText;
         private Image notificationPanel;
         private TextMeshProUGUI notificationText;
         private float notificationTimer;
@@ -27,12 +28,14 @@ namespace NaSvyazi.UI
         {
             GameEvents.MoneyChanged += OnMoneyChanged;
             GameEvents.Notification += OnNotification;
+            GameEvents.ReputationChanged += OnReputationChanged;
         }
 
         private void OnDisable()
         {
             GameEvents.MoneyChanged -= OnMoneyChanged;
             GameEvents.Notification -= OnNotification;
+            GameEvents.ReputationChanged -= OnReputationChanged;
         }
 
         private void Update()
@@ -59,6 +62,13 @@ namespace NaSvyazi.UI
             flashTimer = flashTime;
         }
 
+        private void OnReputationChanged(int value)
+        {
+            reputationText.text = $"Репутация: {value}/100";
+            reputationText.color = value >= 60 ? UIFactory.PositiveColor
+                : value >= 35 ? UIFactory.TextColor : UIFactory.NegativeColor;
+        }
+
         private void OnNotification(string message)
         {
             notificationText.text = message;
@@ -78,6 +88,14 @@ namespace NaSvyazi.UI
             moneyText = UIFactory.CreateText("MoneyText", moneyPanel.transform, "—", 30f,
                 UIFactory.TextColor, TextAlignmentOptions.MidlineRight);
             UIFactory.Stretch(moneyText.rectTransform, 14f);
+
+            Image reputationPanel = UIFactory.CreatePanel("Reputation", canvas.transform,
+                new Color(0.08f, 0.09f, 0.11f, 0.8f));
+            UIFactory.Place(reputationPanel.rectTransform, new Vector2(1f, 1f), new Vector2(1f, 1f),
+                new Vector2(-24f, -92f), new Vector2(300f, 46f));
+            reputationText = UIFactory.CreateText("ReputationText", reputationPanel.transform, "", 22f,
+                UIFactory.TextColor, TextAlignmentOptions.MidlineRight);
+            UIFactory.Stretch(reputationText.rectTransform, 14f);
 
             notificationPanel = UIFactory.CreatePanel("Notification", canvas.transform,
                 new Color(0.08f, 0.09f, 0.11f, 0.9f));

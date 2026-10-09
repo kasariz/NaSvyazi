@@ -3,6 +3,7 @@ using NaSvyazi.Core;
 using NaSvyazi.Economy;
 using NaSvyazi.Products;
 using NaSvyazi.Store;
+using NaSvyazi.Tariffs;
 using UnityEngine;
 
 namespace NaSvyazi.Customers
@@ -17,6 +18,7 @@ namespace NaSvyazi.Customers
         [SerializeField] private Transform spawnPoint;
         [SerializeField] private CheckoutQueue queue;
         [SerializeField] private ProductCatalog catalog;
+        [SerializeField] private TariffCatalog tariffCatalog;
 
         [Header("Поток покупателей")]
         [Tooltip("Интервал между покупателями, сек (мин, макс)")]
@@ -25,6 +27,9 @@ namespace NaSvyazi.Customers
 
         [Tooltip("Сколько разных товаров хочет купить один покупатель (мин, макс)")]
         [SerializeField] private Vector2Int wantedItems = new Vector2Int(1, 3);
+
+        [Tooltip("Доля посетителей, пришедших за консультацией по тарифу")]
+        [Range(0f, 1f)] [SerializeField] private float consultationChance = 0.25f;
 
         private readonly List<Customer> active = new List<Customer>();
         private bool storeOpen;
@@ -49,18 +54,27 @@ namespace NaSvyazi.Customers
             timer -= Time.deltaTime;
             if (timer > 0f) return;
 
-            timer = Random.Range(spawnInterval.x, spawnInterval.y);
+            // Чем выше репутация, тем чаще приходят покупатели.
+            timer = Random.Range(spawnInterval.x, spawnInterval.y) * ReputationManager.SpawnIntervalMultiplier;
             if (active.Count < maxCustomers) Spawn();
         }
 
         private void Spawn()
         {
-            List<ProductData> wants = PickShoppingList();
-            if (wants.Count == 0) return;
+            bool wantsConsultation = tariffCatalog != null && tariffCatalog.needs.Count > 0
+                                     && Random.value < consultationChance;
+
+            List<ProductData> wants = wantsConsultation ? null : PickShoppingList();
+            if (!wantsConsultation && wants.Count == 0) return;
 
             Customer c = Instantiate(customerPrefab, spawnPoint.position, spawnPoint.rotation);
             c.name = $"Customer_{active.Count + 1}";
-            c.Init(wants, DemandModel.RandomTolerance(), queue, spawnPoint.position);
+
+            if (wantsConsultation)
+                c.InitConsultation(tariffCatalog.RandomNeed(), queue, spawnPoint.position);
+            else
+                c.Init(wants, DemandModel.RandomTolerance(), queue, spawnPoint.position);
+
             active.Add(c);
         }
 

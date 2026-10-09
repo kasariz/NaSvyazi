@@ -2,6 +2,7 @@ using System.Collections.Generic;
 using NaSvyazi.Economy;
 using NaSvyazi.Products;
 using NaSvyazi.Store;
+using NaSvyazi.Tariffs;
 using TMPro;
 using UnityEngine;
 using UnityEngine.AI;
@@ -15,6 +16,13 @@ namespace NaSvyazi.Customers
         Browsing,     // смотрит товар и цену, принимает решение
         InQueue,      // стоит в очереди к кассе
         Leaving       // уходит из салона
+    }
+
+    /// <summary>Зачем пришёл покупатель.</summary>
+    public enum CustomerIntent
+    {
+        Shopping,     // купить товары с полок
+        Consultation  // подобрать тариф и подключиться
     }
 
     /// <summary>Товар в корзине и цена, по которой он был взят с полки.</summary>
@@ -52,6 +60,9 @@ namespace NaSvyazi.Customers
         [Tooltip("Если покупатель не может дойти до цели за это время — он переходит дальше")]
         [SerializeField] private float stuckTimeout = 25f;
 
+        [Tooltip("Доля покупателей, которые платят картой")]
+        [Range(0f, 1f)] [SerializeField] private float cardPaymentChance = 0.65f;
+
         private readonly List<BasketItem> basket = new List<BasketItem>();
         private List<ProductData> shoppingList = new List<ProductData>();
 
@@ -66,8 +77,17 @@ namespace NaSvyazi.Customers
         private float patienceTimer;
         private float bubbleTimer;
         private int queueIndex = -1;
+        private bool beingServed;
+        private int cashGiven = -1;
 
         public CustomerState State { get; private set; }
+        public CustomerIntent Intent { get; private set; } = CustomerIntent.Shopping;
+
+        /// <summary>Потребность клиента на консультации (для Intent = Consultation).</summary>
+        public TariffNeed Need { get; private set; }
+
+        /// <summary>Платит картой (иначе — наличными).</summary>
+        public bool PaysByCard { get; private set; }
         public int ItemCount => basket.Count;
         public IReadOnlyList<BasketItem> Basket => basket;
 
@@ -100,16 +120,54 @@ namespace NaSvyazi.Customers
             if (bubble != null) bubble.text = "";
         }
 
-        /// <summary>Инициализация сразу после появления.</summary>
+        /// <summary>Инициализация покупателя, пришедшего за товарами.</summary>
         public void Init(List<ProductData> wants, float tolerance, CheckoutQueue checkoutQueue, Vector3 exit)
         {
+            Intent = CustomerIntent.Shopping;
             shoppingList = wants;
             priceTolerance = tolerance;
             queue = checkoutQueue;
             exitPoint = exit;
             listIndex = 0;
+            PaysByCard = Random.value < cardPaymentChance;
             GoToNextShelf();
         }
+
+        /// <summary>Инициализация клиента, пришедшего за консультацией по тарифу.</summary>
+        public void InitConsultation(TariffNeed need, CheckoutQueue checkoutQueue, Vector3 exit)
+        {
+            Intent = CustomerIntent.Consultation;
+            Need = need;
+            shoppingList = new List<ProductData>();
+            queue = checkoutQueue;
+            exitPoint = exit;
+            PaysByCard = true;
+            Say("Мне нужна консультация");
+            JoinQueue();
+        }
+
+        /// <summary>
+        /// Сумма, которую покупатель даёт наличными: ближайшая «круглая» сумма
+        /// не меньше стоимости покупки (до сотни, пятисот, тысячи или пяти тысяч).
+        /// </summary>
+        public int CashGiven
+        {
+            get
+            {
+                if (cashGiven < 0)
+                {
+                    int total = BasketTotal;
+                    int[] steps = { 100, 500, 1000, 5000 };
+                    int step = steps[Random.Range(0, steps.Length)];
+                    cashGiven = Mathf.CeilToInt(total / (float)step) * step;
+                    if (cashGiven == total && Random.value < 0.5f) cashGiven += step;
+                }
+                return cashGiven;
+            }
+        }
+
+        /// <summary>Кассир начал/закончил обслуживание — пока обслуживают, терпение не тратится.</summary>
+        public void SetBeingServed(bool served) => beingServed = served;
 
         private void Update()
         {
@@ -166,6 +224,7 @@ namespace NaSvyazi.Customers
 
                 Say($"Нет в наличии: {wanted.displayName}");
                 StoreStats.OutOfStockMisses++;
+                ReputationManager.Add(-1, "нет товара в наличии");
                 listIndex++;
             }
 
@@ -249,23 +308,25 @@ namespace NaSvyazi.Customers
             if (HasArrived())
                 FaceTowards(transform.position + queue.FacingDirection);
 
-            patienceTimer -= Time.deltaTime;
+            if (!beingServed) patienceTimer -= Time.deltaTime;
             if (patienceTimer <= 0f)
             {
                 Say("Слишком долго!");
                 StoreStats.LeftQueue++;
+                ReputationManager.Add(-3, "покупатель не дождался кассы");
                 queue.Leave(this);
                 basket.Clear();
                 Leave();
             }
         }
 
-        /// <summary>Покупка оплачена — покупатель уходит довольным.</summary>
-        public void CompletePurchase()
+        /// <summary>Обслуживание завершено — покупатель уходит с репликой.</summary>
+        public void CompletePurchase(string phrase = "Спасибо!")
         {
+            beingServed = false;
             if (queue != null) queue.Leave(this);
             basket.Clear();
-            Say("Спасибо!");
+            Say(phrase);
             Leave();
         }
 
@@ -310,7 +371,7 @@ namespace NaSvyazi.Customers
 
         // --- «Облачко» с репликой над головой ---
 
-        private void Say(string text)
+        public void Say(string text)
         {
             if (bubble == null) return;
             bubble.text = text;
