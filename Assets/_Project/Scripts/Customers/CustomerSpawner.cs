@@ -1,4 +1,5 @@
 using System.Collections.Generic;
+using NaSvyazi.Audio;
 using NaSvyazi.Core;
 using NaSvyazi.Economy;
 using NaSvyazi.Products;
@@ -76,6 +77,7 @@ namespace NaSvyazi.Customers
                 c.Init(wants, DemandModel.RandomTolerance(), queue, spawnPoint.position);
 
             active.Add(c);
+            SoundManager.Play(Sfx.DoorBell, 0.5f);
         }
 
         /// <summary>Случайный список из нескольких разных товаров каталога.</summary>

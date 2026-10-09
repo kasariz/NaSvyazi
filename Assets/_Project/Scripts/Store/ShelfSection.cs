@@ -1,4 +1,5 @@
 using System.Collections.Generic;
+using NaSvyazi.Audio;
 using NaSvyazi.Core;
 using NaSvyazi.Economy;
 using NaSvyazi.Interaction;
@@ -171,8 +172,8 @@ namespace NaSvyazi.Store
             ProductBox box = interactor.Carry.Held as ProductBox;
             if (box == null || box.IsEmpty || !CanPlace(box.Product)) return;
 
-            if (box.TryTakeOne(out ProductData item))
-                TryPlace(item);
+            if (box.TryTakeOne(out ProductData item) && TryPlace(item))
+                SoundManager.Play(Sfx.Place, 0.6f);
         }
 
         public string GetSecondaryPrompt(PlayerInteractor interactor)
@@ -188,7 +189,10 @@ namespace NaSvyazi.Store
             if (box == null || IsEmpty || !box.CanAccept(product)) return;
 
             if (TryTakeOne(out ProductData item))
+            {
                 box.TryPutOne(item);
+                SoundManager.Play(Sfx.Place, 0.4f);
+            }
         }
 
         // --- Внутреннее ---

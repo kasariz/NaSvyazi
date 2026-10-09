@@ -98,8 +98,50 @@ namespace NaSvyazi.UI
                 TextAlignmentOptions.Center);
             Stretch(text.rectTransform);
 
-            if (onClick != null) button.onClick.AddListener(() => onClick());
+            button.onClick.AddListener(() =>
+            {
+                Audio.SoundManager.Play(Audio.Sfx.Click, 0.5f);
+                onClick?.Invoke();
+            });
             return button;
+        }
+
+        /// <summary>Горизонтальный ползунок с подписью значения.</summary>
+        public static Slider CreateSlider(string name, Transform parent, float min, float max, float value,
+            Action<float> onChanged)
+        {
+            Image background = CreatePanel(name, parent, new Color(1f, 1f, 1f, 0.12f));
+            Slider slider = background.gameObject.AddComponent<Slider>();
+
+            RectTransform fillArea = CreateRect("Fill Area", background.transform);
+            Stretch(fillArea);
+            fillArea.offsetMin = new Vector2(5f, 6f);
+            fillArea.offsetMax = new Vector2(-15f, -6f);
+
+            Image fill = CreatePanel("Fill", fillArea, AccentColor);
+            fill.rectTransform.anchorMin = Vector2.zero;
+            fill.rectTransform.anchorMax = new Vector2(0f, 1f);
+            fill.rectTransform.sizeDelta = new Vector2(10f, 0f);
+
+            RectTransform handleArea = CreateRect("Handle Slide Area", background.transform);
+            Stretch(handleArea);
+            handleArea.offsetMin = new Vector2(10f, 0f);
+            handleArea.offsetMax = new Vector2(-10f, 0f);
+
+            Image handle = CreatePanel("Handle", handleArea, TextColor);
+            handle.rectTransform.anchorMin = Vector2.zero;
+            handle.rectTransform.anchorMax = new Vector2(0f, 1f);
+            handle.rectTransform.sizeDelta = new Vector2(22f, 0f);
+
+            slider.fillRect = fill.rectTransform;
+            slider.handleRect = handle.rectTransform;
+            slider.targetGraphic = handle;
+            slider.direction = Slider.Direction.LeftToRight;
+            slider.minValue = min;
+            slider.maxValue = max;
+            slider.value = value;
+            if (onChanged != null) slider.onValueChanged.AddListener(v => onChanged(v));
+            return slider;
         }
 
         /// <summary>Задать желаемый размер элемента внутри раскладки (−1 — не задавать).</summary>

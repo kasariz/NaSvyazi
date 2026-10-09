@@ -192,6 +192,21 @@ namespace NaSvyazi.Save
             return path;
         }
 
+        /// <summary>Номер дня в сохранении (для кнопки «Продолжить»), 0 — если сохранения нет.</summary>
+        public static int ReadSavedDay()
+        {
+            if (!HasSave) return 0;
+            try
+            {
+                SaveData data = JsonUtility.FromJson<SaveData>(File.ReadAllText(SavePath, Encoding.UTF8));
+                return data != null ? data.day : 0;
+            }
+            catch (Exception)
+            {
+                return 0;
+            }
+        }
+
         /// <summary>Удалить файл сохранения.</summary>
         public static void DeleteSave()
         {

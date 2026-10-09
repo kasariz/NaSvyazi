@@ -1,5 +1,6 @@
 using System.Collections.Generic;
 using System.IO;
+using NaSvyazi.Audio;
 using NaSvyazi.Customers;
 using NaSvyazi.Economy;
 using NaSvyazi.Interaction;
@@ -13,6 +14,10 @@ using UnityEditor;
 using UnityEditor.SceneManagement;
 using UnityEngine;
 using UnityEngine.AI;
+using UnityEngine.EventSystems;
+using UnityEngine.InputSystem.UI;
+using UnityEngine.Rendering;
+using UnityEngine.SceneManagement;
 
 namespace NaSvyazi.EditorTools
 {
@@ -183,6 +188,234 @@ namespace NaSvyazi.EditorTools
             Selection.activeGameObject = systems;
             MarkSceneDirty();
             Debug.Log("[На связи] Итерация 6: рабочий день, отчёт, сохранение, открытие категорий. Сохраните сцену (Ctrl+S).");
+        }
+
+        // ----------------------------------------------------------------
+        // Итерация 7: звук, пауза, главное меню, оформление, сборка
+        // ----------------------------------------------------------------
+
+        private const string MainMenuScenePath = "Assets/Scenes/MainMenu.unity";
+
+        [MenuItem("На связи/Подготовить сцену (итерация 7)", priority = 5)]
+        private static void PrepareIteration7()
+        {
+            GameObject systems = GameObject.Find("GameSystems");
+            if (systems == null || Object.FindAnyObjectByType<DayManager>() == null)
+            {
+                Debug.LogError("[На связи] Сначала выполните итерации 3–6.");
+                return;
+            }
+
+            GetOrAdd<SoundManager>(systems);
+            GetOrAdd<PauseMenuUI>(systems);
+            DecorateSalon();
+            MarkSceneDirty();
+
+            // Сцену салона сохраняем автоматически: дальше создаётся сцена главного меню.
+            Scene salon = SceneManager.GetActiveScene();
+            EditorSceneManager.SaveScene(salon);
+            string salonPath = salon.path;
+
+            CreateMainMenuScene();
+
+            EditorBuildSettings.scenes = new[]
+            {
+                new EditorBuildSettingsScene(MainMenuScenePath, true),
+                new EditorBuildSettingsScene(salonPath, true)
+            };
+            PlayerSettings.productName = "NaSvyazi";
+
+            EditorSceneManager.OpenScene(salonPath);
+            Debug.Log("[На связи] Итерация 7: звук, пауза, главное меню, оформление салона. Сцены добавлены в сборку.");
+        }
+
+        [MenuItem("На связи/Открыть главное меню", priority = 12)]
+        private static void OpenMainMenu()
+        {
+            if (!System.IO.File.Exists(MainMenuScenePath))
+            {
+                Debug.LogError("[На связи] Сцены главного меню ещё нет — выполните итерацию 7.");
+                return;
+            }
+            if (EditorSceneManager.SaveCurrentModifiedScenesIfUserWantsTo())
+                EditorSceneManager.OpenScene(MainMenuScenePath);
+        }
+
+        private static void CreateMainMenuScene()
+        {
+            if (System.IO.File.Exists(MainMenuScenePath)) return;
+
+            Scene scene = EditorSceneManager.NewScene(NewSceneSetup.DefaultGameObjects, NewSceneMode.Single);
+
+            Camera cam = Object.FindAnyObjectByType<Camera>();
+            if (cam != null)
+            {
+                cam.clearFlags = CameraClearFlags.SolidColor;
+                cam.backgroundColor = new Color(0.06f, 0.07f, 0.09f);
+            }
+
+            GameObject menu = new GameObject("MainMenu");
+            menu.AddComponent<MainMenuUI>();
+            menu.AddComponent<SoundManager>();
+
+            new GameObject("EventSystem", typeof(EventSystem), typeof(InputSystemUIInputModule));
+
+            EditorSceneManager.SaveScene(scene, MainMenuScenePath);
+        }
+
+        /// <summary>
+        /// Оформление салона: плитка на полу, светлые стены, потолок со светильниками,
+        /// фирменная полоса, логотип, рекламные постеры, вывеска над входом, коврик.
+        /// </summary>
+        private static void DecorateSalon()
+        {
+            if (GameObject.Find("Decor") != null)
+            {
+                Debug.Log("[На связи] Оформление уже есть — пропускаю.");
+                return;
+            }
+
+            GameObject decor = new GameObject("Decor");
+            Undo.RegisterCreatedObjectUndo(decor, "Оформление");
+            Transform d = decor.transform;
+
+            Color accent = new Color(0.86f, 0.18f, 0.55f);
+            Color dark = new Color(0.1f, 0.1f, 0.12f);
+
+            // Пол — плитка.
+            GameObject floor = GameObject.Find("Floor");
+            if (floor != null)
+            {
+                Undo.RecordObject(floor.GetComponent<Renderer>(), "Оформление");
+                floor.GetComponent<Renderer>().sharedMaterial = GetFloorTilesMaterial();
+            }
+
+            // Стены — светлые.
+            Material wall = GetMaterial("M_Wall", new Color(0.93f, 0.92f, 0.9f));
+            foreach (string name in new[] { "Wall_N", "Wall_E", "Wall_W", "Wall_S", "Wall_S2", "Wall_S_Lintel" })
+            {
+                GameObject w = GameObject.Find(name);
+                if (w == null) continue;
+                Undo.RecordObject(w.GetComponent<Renderer>(), "Оформление");
+                w.GetComponent<Renderer>().sharedMaterial = wall;
+            }
+
+            // Прилавок — тёмный с акцентной полосой со стороны покупателей.
+            GameObject counter = GameObject.Find("Counter");
+            if (counter != null)
+            {
+                Undo.RecordObject(counter.GetComponent<Renderer>(), "Оформление");
+                counter.GetComponent<Renderer>().sharedMaterial = GetMaterial("M_Counter", new Color(0.2f, 0.2f, 0.23f));
+            }
+            WorldCube(d, "CounterStripe", new Vector3(0f, 0.8f, 5.59f), new Vector3(3.02f, 0.12f, 0.02f),
+                GetMaterial("M_Accent", accent));
+
+            // Потолок не отбрасывает тень — внутрь салона по-прежнему попадает солнечный свет.
+            GameObject ceiling = WorldCube(d, "Ceiling", new Vector3(0f, 3.1f, 0f), new Vector3(20f, 0.2f, 20f),
+                GetMaterial("M_Ceiling", new Color(0.96f, 0.96f, 0.96f)));
+            ceiling.GetComponent<Renderer>().shadowCastingMode = ShadowCastingMode.Off;
+
+            Material lamp = GetEmissiveMaterial("M_Lamp", new Color(1f, 0.98f, 0.92f), 2f);
+            foreach (float x in new[] { -5f, 0f, 5f })
+                foreach (float z in new[] { -4f, 4f })
+                    WorldCube(d, "Lamp", new Vector3(x, 2.99f, z), new Vector3(1.2f, 0.02f, 0.4f), lamp)
+                        .GetComponent<Renderer>().shadowCastingMode = ShadowCastingMode.Off;
+
+            // Фирменная полоса и логотип на стене за прилавком.
+            WorldCube(d, "WallStripe", new Vector3(0f, 2.55f, 9.885f), new Vector3(19.6f, 0.22f, 0.02f),
+                GetMaterial("M_Accent", accent));
+            WorldLabel(d, "Logo", new Vector3(0f, 1.95f, 9.87f), Quaternion.identity, new Vector2(7f, 0.9f),
+                "НА СВЯЗИ", dark, 9f);
+            WorldLabel(d, "LogoSub", new Vector3(0f, 1.4f, 9.87f), Quaternion.identity, new Vector2(7f, 0.35f),
+                "салон связи", new Color(0.35f, 0.35f, 0.38f), 3f);
+
+            // Рекламные постеры.
+            CreatePoster(d, "Poster_Max", new Vector3(-9.88f, 1.7f, -2f), -90f, new Vector2(1.6f, 1.1f), accent,
+                "Тариф «Максимум»\nбезлимитный интернет\n850 руб./мес", Color.white);
+            CreatePoster(d, "Poster_Connect", new Vector3(-9.88f, 1.7f, 4f), -90f, new Vector2(1.6f, 1.1f), dark,
+                "Подключим\nза 5 минут", Color.white);
+            CreatePoster(d, "Poster_Phones", new Vector3(9.88f, 1.7f, 0f), 90f, new Vector2(1.8f, 1.1f),
+                new Color(0.15f, 0.35f, 0.6f), "Новые смартфоны\nуже в продаже", Color.white);
+
+            // Вывеска над входом (снаружи) и коврик у двери.
+            WorldCube(d, "Signboard", new Vector3(-6f, 2.65f, -10.13f), new Vector3(3.2f, 0.6f, 0.04f),
+                GetMaterial("M_Signboard", dark));
+            WorldLabel(d, "SignboardText", new Vector3(-6f, 2.65f, -10.155f), Quaternion.identity,
+                new Vector2(3f, 0.5f), "НА СВЯЗИ", accent, 6f);
+            WorldCube(d, "EntranceMat", new Vector3(-6f, 0.005f, -9.3f), new Vector3(2f, 0.01f, 1.2f),
+                GetMaterial("M_Mat", new Color(0.25f, 0.25f, 0.27f)));
+        }
+
+        private static GameObject WorldCube(Transform parent, string name, Vector3 position, Vector3 size, Material m)
+        {
+            GameObject go = CreateCube(name, parent, Vector3.zero, size, m, keepCollider: false);
+            go.transform.position = position;
+            return go;
+        }
+
+        private static TextMeshPro WorldLabel(Transform parent, string name, Vector3 position, Quaternion rotation,
+            Vector2 size, string text, Color color, float maxFontSize)
+        {
+            TextMeshPro label = CreateLabel(name, parent, Vector3.zero, Quaternion.identity, size, color);
+            label.transform.SetPositionAndRotation(position, rotation);
+            label.fontSizeMax = maxFontSize;
+            label.text = text;
+            return label;
+        }
+
+        /// <summary>Постер на стене: подложка и текст перед ней (со стороны зрителя).</summary>
+        private static void CreatePoster(Transform parent, string name, Vector3 position, float rotationY,
+            Vector2 size, Color background, string text, Color textColor)
+        {
+            Quaternion rotation = Quaternion.Euler(0f, rotationY, 0f);
+            GameObject back = WorldCube(parent, name, position, new Vector3(size.x, size.y, 0.02f),
+                GetMaterial($"M_{name}", background));
+            back.transform.rotation = rotation;
+
+            Vector3 textPosition = position - rotation * Vector3.forward * 0.015f;
+            WorldLabel(parent, name + "_Text", textPosition, rotation, size * 0.88f, text, textColor, 3f);
+        }
+
+        private static Material GetEmissiveMaterial(string name, Color color, float intensity)
+        {
+            string path = $"{MaterialsFolder}/{name}.mat";
+            Material existing = AssetDatabase.LoadAssetAtPath<Material>(path);
+            if (existing != null) return existing;
+
+            Material m = GetMaterial(name, color);
+            m.EnableKeyword("_EMISSION");
+            m.SetColor("_EmissionColor", color * intensity);
+            EditorUtility.SetDirty(m);
+            return m;
+        }
+
+        /// <summary>Материал плитки: текстура генерируется кодом и сохраняется как PNG.</summary>
+        private static Material GetFloorTilesMaterial()
+        {
+            const string texturePath = "Assets/_Project/Textures/T_FloorTiles.png";
+            if (!System.IO.File.Exists(texturePath))
+            {
+                EnsureFolder("Assets/_Project/Textures");
+                const int size = 512, tile = 64, grout = 2;
+                Texture2D tex = new Texture2D(size, size, TextureFormat.RGB24, false);
+                Color a = new Color(0.86f, 0.86f, 0.84f), b = new Color(0.8f, 0.8f, 0.79f), g = new Color(0.6f, 0.6f, 0.6f);
+                for (int y = 0; y < size; y++)
+                    for (int x = 0; x < size; x++)
+                    {
+                        bool isGrout = x % tile < grout || y % tile < grout;
+                        bool odd = ((x / tile) + (y / tile)) % 2 == 1;
+                        tex.SetPixel(x, y, isGrout ? g : (odd ? a : b));
+                    }
+                System.IO.File.WriteAllBytes(texturePath, tex.EncodeToPNG());
+                Object.DestroyImmediate(tex);
+                AssetDatabase.ImportAsset(texturePath);
+            }
+
+            Material m = GetMaterial("M_FloorTiles", Color.white);
+            m.SetTexture("_BaseMap", AssetDatabase.LoadAssetAtPath<Texture2D>(texturePath));
+            m.SetTextureScale("_BaseMap", new Vector2(4f, 4f));
+            EditorUtility.SetDirty(m);
+            return m;
         }
 
         [MenuItem("На связи/Удалить сохранение игры", priority = 30)]

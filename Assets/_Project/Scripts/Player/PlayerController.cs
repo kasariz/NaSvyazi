@@ -1,3 +1,4 @@
+using NaSvyazi.Audio;
 using NaSvyazi.Core;
 using NaSvyazi.UI;
 using UnityEngine;
@@ -27,6 +28,11 @@ namespace NaSvyazi.Player
         [SerializeField] private float minPitch = -85f;
         [SerializeField] private float maxPitch = 85f;
 
+        [Header("Шаги")]
+        [Tooltip("Расстояние между шагами при ходьбе, м")]
+        [SerializeField] private float stepDistance = 0.6f;
+        private float stepProgress;
+
         private CharacterController controller;
         private float pitch;
         private float verticalVelocity;
@@ -49,9 +55,9 @@ namespace NaSvyazi.Player
 
         private void Update()
         {
-            // Esc — пауза (освободить курсор). Если открыто окно, Esc закрывает его, а не ставит паузу.
+            // Esc обрабатывает меню паузы. Если его нет на сцене — просто освобождаем курсор.
             bool escapeHandledByWindow = ModalWindow.IsAnyOpen || ModalWindow.LastClosedFrame == Time.frameCount;
-            if (GameInput.EscapePressed && !escapeHandledByWindow)
+            if (GameInput.EscapePressed && !escapeHandledByWindow && PauseMenuUI.Instance == null)
                 SetInputLocked(!InputLocked);
 
             HandleLook();
@@ -70,7 +76,7 @@ namespace NaSvyazi.Player
         {
             if (InputLocked || cameraPivot == null) return;
 
-            Vector2 delta = GameInput.LookDelta * mouseSensitivity;
+            Vector2 delta = GameInput.LookDelta * (mouseSensitivity * GameSettings.MouseSensitivity);
 
             // Поворот тела по горизонтали, камеры — по вертикали.
             transform.Rotate(0f, delta.x, 0f);
@@ -96,6 +102,17 @@ namespace NaSvyazi.Player
             move.y = verticalVelocity;
 
             controller.Move(move * Time.deltaTime);
+
+            // Звук шагов: по пройденному расстоянию, только на земле.
+            if (controller.isGrounded && input.sqrMagnitude > 0.01f)
+            {
+                stepProgress += speed * Time.deltaTime;
+                if (stepProgress >= stepDistance)
+                {
+                    stepProgress = 0f;
+                    SoundManager.PlayStep();
+                }
+            }
         }
     }
 }

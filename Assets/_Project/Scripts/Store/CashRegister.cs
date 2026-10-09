@@ -1,4 +1,5 @@
 using System.Collections.Generic;
+using NaSvyazi.Audio;
 using NaSvyazi.Core;
 using NaSvyazi.Customers;
 using NaSvyazi.Economy;
@@ -115,6 +116,7 @@ namespace NaSvyazi.Store
 
             scannedTotal += item.Price;
             Destroy(item.gameObject);
+            SoundManager.Play(Sfx.Scan);
             UpdateDisplay();
 
             if (items.Count == 0)
@@ -190,6 +192,7 @@ namespace NaSvyazi.Store
         private void FinishSale(int income, string phrase)
         {
             if (EconomyManager.Instance != null) EconomyManager.Instance.Earn(income, "Продажа");
+            SoundManager.Play(Sfx.Purchase);
 
             StoreStats.CustomersServed++;
             StoreStats.ItemsSold += current.ItemCount;
@@ -211,6 +214,7 @@ namespace NaSvyazi.Store
                     StoreStats.ConsultationsBest++;
                     ReputationManager.Add(3, "точно подобран тариф");
                     Earn(chosen.monthlyFee, "Подключение тарифа");
+                    SoundManager.Play(Sfx.Purchase);
                     GameEvents.Notify($"Отличный выбор! Клиент подключил «{chosen.displayName}»");
                     current.CompletePurchase("То, что нужно, спасибо!");
                     break;
@@ -229,6 +233,7 @@ namespace NaSvyazi.Store
                 default:
                     StoreStats.ConsultationsFailed++;
                     ReputationManager.Add(-4, "неподходящий тариф");
+                    SoundManager.Play(Sfx.Error);
                     GameEvents.Notify("Тариф не подходит клиенту — он ушёл без подключения");
                     current.CompletePurchase("Это мне не подходит...");
                     break;

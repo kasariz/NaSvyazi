@@ -74,6 +74,7 @@ namespace NaSvyazi.Economy
             if (reputation < rule.minReputation)
             {
                 GameEvents.Notify($"Нужна репутация не ниже {rule.minReputation}");
+                Audio.SoundManager.Play(Audio.Sfx.Error);
                 return false;
             }
 
@@ -81,6 +82,7 @@ namespace NaSvyazi.Economy
             if (economy == null || !economy.TrySpend(rule.cost, $"Открытие категории «{category.ToDisplayName()}»"))
             {
                 GameEvents.Notify("Недостаточно денег");
+                Audio.SoundManager.Play(Audio.Sfx.Error);
                 return false;
             }
 

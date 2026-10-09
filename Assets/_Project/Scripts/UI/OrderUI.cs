@@ -128,6 +128,7 @@ namespace NaSvyazi.UI
             if (!economy.TrySpend(total, "Закупка товара"))
             {
                 GameEvents.Notify("Недостаточно денег для заказа");
+                Audio.SoundManager.Play(Audio.Sfx.Error);
                 return;
             }
 

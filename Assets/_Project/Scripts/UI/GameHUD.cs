@@ -1,3 +1,4 @@
+using NaSvyazi.Audio;
 using NaSvyazi.Core;
 using NaSvyazi.Economy;
 using NaSvyazi.Store;
@@ -89,6 +90,7 @@ namespace NaSvyazi.UI
         private void OnNotification(string message)
         {
             notificationText.text = message;
+            SoundManager.Play(Sfx.Notify, 0.35f);
             notificationPanel.gameObject.SetActive(true);
             notificationTimer = notificationTime;
         }

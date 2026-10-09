@@ -1,3 +1,4 @@
+using NaSvyazi.Audio;
 using NaSvyazi.Interaction;
 using UnityEngine;
 
@@ -24,6 +25,7 @@ namespace NaSvyazi.Player
 
             Held = item;
             item.OnPickedUp(holdPoint);
+            SoundManager.Play(Sfx.Pickup, 0.7f);
             return true;
         }
 
@@ -35,6 +37,7 @@ namespace NaSvyazi.Player
             Carryable item = Held;
             Held = null;
             item.OnDropped(holdPoint.forward * dropForwardSpeed);
+            SoundManager.Play(Sfx.Pickup, 0.4f);
         }
 
         /// <summary>
