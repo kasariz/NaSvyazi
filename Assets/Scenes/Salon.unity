@@ -509,6 +509,12 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::NaSvyazi.Store.CashRegister
   queue: {fileID: 768868475}
+  changeUI: {fileID: 1230941326}
+  consultationUI: {fileID: 1230941325}
+  tariffCatalog: {fileID: 11400000, guid: 119bdf3491ded444db378a84bf2b2e75, type: 2}
+  itemsOrigin: {x: -0.22, y: 0, z: -0.22}
+  itemSpacing: 0.16
+  itemsPerRow: 4
 --- !u!4 &176661880
 Transform:
   m_ObjectHideFlags: 0
@@ -3861,7 +3867,7 @@ Transform:
   m_GameObject: {fileID: 857578381}
   serializedVersion: 2
   m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
-  m_LocalPosition: {x: 0, y: 0.08, z: 0.03}
+  m_LocalPosition: {x: 0, y: 0.08, z: 0}
   m_LocalScale: {x: 0.08, y: 0.16, z: 0.06}
   m_ConstrainProportionsScale: 0
   m_Children: []
@@ -4636,7 +4642,7 @@ Transform:
   m_GameObject: {fileID: 1221010653}
   serializedVersion: 2
   m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
-  m_LocalPosition: {x: 0, y: 0.68, z: 0}
+  m_LocalPosition: {x: 0, y: 0.3396, z: 0}
   m_LocalScale: {x: 0.56, y: 0.36, z: 0.05}
   m_ConstrainProportionsScale: 0
   m_Children: []
@@ -4736,6 +4742,9 @@ GameObject:
   - component: {fileID: 1230941324}
   - component: {fileID: 1230941323}
   - component: {fileID: 1230941322}
+  - component: {fileID: 1230941327}
+  - component: {fileID: 1230941326}
+  - component: {fileID: 1230941325}
   m_Layer: 0
   m_Name: GameSystems
   m_TagString: Untagged
@@ -4836,9 +4845,11 @@ MonoBehaviour:
   spawnPoint: {fileID: 1865451468}
   queue: {fileID: 768868475}
   catalog: {fileID: 11400000, guid: ee3c4e2cab3e49f4b982160b7ea359dc, type: 2}
+  tariffCatalog: {fileID: 11400000, guid: 119bdf3491ded444db378a84bf2b2e75, type: 2}
   spawnInterval: {x: 8, y: 16}
   maxCustomers: 6
   wantedItems: {x: 1, y: 3}
+  consultationChance: 0.25
 --- !u!114 &1230941323
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -4865,6 +4876,43 @@ MonoBehaviour:
   m_EditorClassIdentifier: Assembly-CSharp::NaSvyazi.Economy.PriceManager
   minPrice: 1
   maxPrice: 999999
+--- !u!114 &1230941325
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1230941316}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 94edd6860e70b5749b946b107e30d05d, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::NaSvyazi.UI.ConsultationUI
+--- !u!114 &1230941326
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1230941316}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: eb4f5666812b92f41920ea90924412e2, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::NaSvyazi.UI.ChangeUI
+--- !u!114 &1230941327
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1230941316}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 0d4e4a5e7cb4286408489fc04b113daa, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::NaSvyazi.Economy.ReputationManager
+  startReputation: 50
 --- !u!1 &1326064072
 GameObject:
   m_ObjectHideFlags: 0

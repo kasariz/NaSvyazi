@@ -1,0 +1,26 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: acbf63e0c4377d649b723d46fbdcd281, type: 3}
+  m_Name: Product_phone_basic
+  m_EditorClassIdentifier: Assembly-CSharp::NaSvyazi.Products.ProductData
+  id: phone_basic
+  displayName: "\u0421\u043C\u0430\u0440\u0442\u0444\u043E\u043D \u043D\u0430\u0447\u0430\u043B\u044C\u043D\u043E\u0433\u043E
+    \u0443\u0440\u043E\u0432\u043D\u044F"
+  category: 4
+  description: 
+  purchasePrice: 6500
+  marketPrice: 9990
+  unitsPerBox: 4
+  modelPrefab: {fileID: 0}
+  size: {x: 0.09, y: 0.17, z: 0.04}
+  color: {r: 0.3, g: 0.3, b: 0.34, a: 1}
+  icon: {fileID: 0}

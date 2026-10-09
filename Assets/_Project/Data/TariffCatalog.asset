@@ -1,0 +1,57 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: b220e435ac5d0094a9ee2e0e23148f07, type: 3}
+  m_Name: TariffCatalog
+  m_EditorClassIdentifier: Assembly-CSharp::NaSvyazi.Tariffs.TariffCatalog
+  tariffs:
+  - {fileID: 11400000, guid: 8873403003e79084da5965fb2c073d60, type: 2}
+  - {fileID: 11400000, guid: 13125636c6db13846880ea0dada46933, type: 2}
+  - {fileID: 11400000, guid: 7f7c96076f43d58439ec6380efd554ce, type: 2}
+  - {fileID: 11400000, guid: fee0a6a177f7d804092a2634fa209b77, type: 2}
+  - {fileID: 11400000, guid: 4b4de7e3dd542a943ab50f30c74fd9de, type: 2}
+  needs:
+  - request: "\u041C\u043D\u0435 \u043D\u0443\u0436\u0435\u043D \u0438\u043D\u0442\u0435\u0440\u043D\u0435\u0442
+      \u0434\u043B\u044F \u0441\u043E\u0446\u0441\u0435\u0442\u0435\u0439 \u0438
+      \u0432\u0438\u0434\u0435\u043E, \u0437\u0432\u043E\u043D\u044E \u0440\u0435\u0434\u043A\u043E"
+    minGigabytes: 30
+    minMinutes: 100
+  - request: "\u041F\u043E\u0447\u0442\u0438 \u043D\u0435 \u043F\u043E\u043B\u044C\u0437\u0443\u044E\u0441\u044C
+      \u0438\u043D\u0442\u0435\u0440\u043D\u0435\u0442\u043E\u043C, \u043D\u043E
+      \u043E\u0447\u0435\u043D\u044C \u043C\u043D\u043E\u0433\u043E \u0440\u0430\u0437\u0433\u043E\u0432\u0430\u0440\u0438\u0432\u0430\u044E"
+    minGigabytes: 2
+    minMinutes: 800
+  - request: "\u0425\u043E\u0447\u0443 \u0441\u0430\u043C\u044B\u0439 \u0434\u0435\u0448\u0451\u0432\u044B\u0439
+      \u0442\u0430\u0440\u0438\u0444 \u2014 \u0442\u043E\u043B\u044C\u043A\u043E
+      \u0437\u0432\u043E\u043D\u0438\u0442\u044C \u0438 \u0438\u043D\u043E\u0433\u0434\u0430
+      \u043C\u0435\u0441\u0441\u0435\u043D\u0434\u0436\u0435\u0440\u044B"
+    minGigabytes: 1
+    minMinutes: 100
+  - request: "\u0420\u0430\u0431\u043E\u0442\u0430\u044E \u0432 \u0434\u043E\u0440\u043E\u0433\u0435,
+      \u043D\u0443\u0436\u0435\u043D \u0431\u0435\u0437\u043B\u0438\u043C\u0438\u0442\u043D\u044B\u0439
+      \u0438\u043D\u0442\u0435\u0440\u043D\u0435\u0442 \u0438 \u0437\u0432\u043E\u043D\u043A\u0438"
+    minGigabytes: -1
+    minMinutes: 300
+  - request: "\u041D\u0443\u0436\u043D\u0430 SIM-\u043A\u0430\u0440\u0442\u0430 \u0434\u043B\u044F
+      \u043F\u043B\u0430\u043D\u0448\u0435\u0442\u0430, \u0437\u0432\u043E\u043D\u0438\u0442\u044C
+      \u0441 \u043D\u0435\u0451 \u043D\u0435 \u0431\u0443\u0434\u0443"
+    minGigabytes: 20
+    minMinutes: 0
+  - request: "\u041D\u0443\u0436\u043D\u043E \u043F\u043E\u0431\u043E\u043B\u044C\u0448\u0435
+      \u0438 \u0438\u043D\u0442\u0435\u0440\u043D\u0435\u0442\u0430, \u0438 \u043C\u0438\u043D\u0443\u0442
+      \u2014 \u0440\u0430\u0431\u043E\u0442\u0430\u044E \u0441 \u0442\u0435\u043B\u0435\u0444\u043E\u043D\u0430"
+    minGigabytes: 30
+    minMinutes: 600
+  - request: "\u0420\u0435\u0431\u0451\u043D\u043A\u0443 \u0432 \u0448\u043A\u043E\u043B\u0443:
+      \u043D\u0435\u043C\u043D\u043E\u0433\u043E \u0438\u043D\u0442\u0435\u0440\u043D\u0435\u0442\u0430
+      \u0438 \u0437\u0432\u043E\u043D\u043A\u0438 \u0440\u043E\u0434\u0438\u0442\u0435\u043B\u044F\u043C"
+    minGigabytes: 5
+    minMinutes: 200
