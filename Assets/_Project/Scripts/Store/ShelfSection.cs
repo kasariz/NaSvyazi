@@ -1,7 +1,10 @@
 using System.Collections.Generic;
+using NaSvyazi.Core;
+using NaSvyazi.Economy;
 using NaSvyazi.Interaction;
 using NaSvyazi.Player;
 using NaSvyazi.Products;
+using NaSvyazi.UI;
 using TMPro;
 using UnityEngine;
 
@@ -12,9 +15,10 @@ namespace NaSvyazi.Store
     /// Сетка мест рассчитывается автоматически по габаритам товара:
     /// мелкие SIM-пакеты встанут плотнее, крупные зарядки — реже.
     /// Синяя ось Z (вперёд) секции должна смотреть на покупателя.
+    /// E — изменить цену товара, ЛКМ — выложить из коробки, ПКМ — убрать в коробку.
     /// </summary>
     [RequireComponent(typeof(BoxCollider))]
-    public class ShelfSection : MonoBehaviour, IActionTarget
+    public class ShelfSection : MonoBehaviour, IActionTarget, IInteractable
     {
         /// <summary>Все секции на сцене — понадобится покупателям для поиска товара.</summary>
         public static readonly List<ShelfSection> All = new List<ShelfSection>();
@@ -49,8 +53,33 @@ namespace NaSvyazi.Store
             UpdateLabel();
         }
 
-        private void OnEnable() => All.Add(this);
-        private void OnDisable() => All.Remove(this);
+        private void OnEnable()
+        {
+            All.Add(this);
+            GameEvents.PriceChanged += OnPriceChanged;
+        }
+
+        private void OnDisable()
+        {
+            All.Remove(this);
+            GameEvents.PriceChanged -= OnPriceChanged;
+        }
+
+        private void OnPriceChanged(ProductData changed, int price)
+        {
+            if (changed == product) UpdateLabel();
+        }
+
+        /// <summary>Точка на полу перед секцией, куда подходит покупатель.</summary>
+        public Vector3 CustomerStandPoint
+        {
+            get
+            {
+                Vector3 p = transform.TransformPoint(new Vector3(0f, 0f, depth * 0.5f + 0.55f));
+                p.y = 0f;
+                return p;
+            }
+        }
 
         // Вызывается в редакторе при добавлении компонента.
         private void Reset() => ConfigureCollider();
@@ -102,6 +131,17 @@ namespace NaSvyazi.Store
             UpdateLabel();
             return true;
         }
+
+        // --- IInteractable: E — изменить цену ---
+
+        public string GetPrompt(PlayerInteractor interactor) =>
+            $"Цена: {EconomyManager.Format(PriceManager.PriceOf(product))} — изменить";
+
+        public bool CanInteract(PlayerInteractor interactor) =>
+            !IsEmpty && PriceUI.Instance != null && !ModalWindow.IsAnyOpen;
+
+        public void Interact(PlayerInteractor interactor) =>
+            PriceUI.Instance.OpenFor(product, interactor.Controller);
 
         // --- IActionTarget: ЛКМ — выложить, ПКМ — убрать в коробку ---
 
@@ -174,7 +214,9 @@ namespace NaSvyazi.Store
         private void UpdateLabel()
         {
             if (label == null) return;
-            label.text = IsEmpty ? "Пусто" : $"{product.displayName}  {Count}/{Capacity}";
+            label.text = IsEmpty
+                ? "Пусто"
+                : $"{product.displayName} · {EconomyManager.Format(PriceManager.PriceOf(product))} · {Count}/{Capacity}";
         }
 
         private void OnDrawGizmos()

@@ -1,4 +1,5 @@
 using System;
+using NaSvyazi.Products;
 
 namespace NaSvyazi.Core
 {
@@ -18,8 +19,12 @@ namespace NaSvyazi.Core
         /// <summary>Короткое уведомление для игрока («Доставка прибыла»).</summary>
         public static event Action<string> Notification;
 
+        /// <summary>Изменилась цена продажи товара: (товар, новая цена).</summary>
+        public static event Action<ProductData, int> PriceChanged;
+
         public static void RaiseStoreOpenChanged(bool isOpen) => StoreOpenChanged?.Invoke(isOpen);
         public static void RaiseMoneyChanged(int balance, int delta) => MoneyChanged?.Invoke(balance, delta);
         public static void Notify(string message) => Notification?.Invoke(message);
+        public static void RaisePriceChanged(ProductData product, int price) => PriceChanged?.Invoke(product, price);
     }
 }

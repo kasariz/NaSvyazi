@@ -1,14 +1,17 @@
 using System.Collections.Generic;
 using System.IO;
+using NaSvyazi.Customers;
 using NaSvyazi.Economy;
 using NaSvyazi.Interaction;
 using NaSvyazi.Products;
 using NaSvyazi.Store;
 using NaSvyazi.UI;
 using TMPro;
+using Unity.AI.Navigation;
 using UnityEditor;
 using UnityEditor.SceneManagement;
 using UnityEngine;
+using UnityEngine.AI;
 
 namespace NaSvyazi.EditorTools
 {
@@ -83,6 +86,41 @@ namespace NaSvyazi.EditorTools
             Selection.activeGameObject = systems;
             MarkSceneDirty();
             Debug.Log("[На связи] Итерация 3: экономика, интерфейс, терминал заказа и зона доставки добавлены. Сохраните сцену (Ctrl+S).");
+        }
+
+        [MenuItem("На связи/Подготовить сцену (итерация 4)", priority = 2)]
+        private static void PrepareIteration4()
+        {
+            ProductCatalog catalog = CreateCatalog();
+            GameObject customerPrefab = CreateCustomerPrefab();
+
+            GameObject systems = GameObject.Find("GameSystems");
+            if (systems == null)
+            {
+                Debug.LogError("[На связи] Сначала выполните «Подготовить сцену (итерация 3)».");
+                return;
+            }
+
+            CreateDoorAndStreet();
+            CreateNavigation();
+
+            Transform spawn = FindOrCreatePoint("CustomerSpawn", new Vector3(-6f, 0f, -15f), Quaternion.identity);
+            CheckoutQueue queue = CreateCheckoutQueue(new Vector3(-0.8f, 0f, 5.0f));
+            CashRegister register = CreateCashRegister(new Vector3(-0.8f, 1.0f, 6.0f));
+
+            GetOrAdd<PriceManager>(systems);
+            GetOrAdd<PriceUI>(systems);
+            CustomerSpawner spawner = GetOrAdd<CustomerSpawner>(systems);
+
+            SetReference(spawner, "customerPrefab", customerPrefab.GetComponent<Customer>());
+            SetReference(spawner, "spawnPoint", spawn);
+            SetReference(spawner, "queue", queue);
+            SetReference(spawner, "catalog", catalog);
+            SetReference(register, "queue", queue);
+
+            Selection.activeGameObject = systems;
+            MarkSceneDirty();
+            Debug.Log("[На связи] Итерация 4: покупатели, цены, касса, навигация, дверь и улица добавлены. Сохраните сцену (Ctrl+S).");
         }
 
         [MenuItem("На связи/Создать тестовые товары", priority = 20)]
@@ -374,6 +412,180 @@ namespace NaSvyazi.EditorTools
             label.text = "ЗАКАЗ\nТОВАРА";
 
             return root.AddComponent<OrderTerminal>();
+        }
+
+        // ----------------------------------------------------------------
+        // Итерация 4: покупатели, навигация, дверь, касса
+        // ----------------------------------------------------------------
+
+        private const string CustomerPrefabPath = PrefabsFolder + "/Customer.prefab";
+
+        private static GameObject CreateCustomerPrefab()
+        {
+            GameObject existing = AssetDatabase.LoadAssetAtPath<GameObject>(CustomerPrefabPath);
+            if (existing != null) return existing;
+
+            EnsureFolder(PrefabsFolder);
+
+            GameObject root = new GameObject("Customer");
+            CapsuleCollider capsule = root.AddComponent<CapsuleCollider>();
+            capsule.center = new Vector3(0f, 0.85f, 0f);
+            capsule.radius = 0.28f;
+            capsule.height = 1.7f;
+
+            NavMeshAgent agent = root.AddComponent<NavMeshAgent>();
+            agent.radius = 0.3f;
+            agent.height = 1.7f;
+            agent.speed = 1.8f;
+            agent.angularSpeed = 540f;
+            agent.acceleration = 10f;
+            agent.stoppingDistance = 0.15f;
+
+            Customer customer = root.AddComponent<Customer>();
+
+            // Тело — капсула, цвет задаётся случайно при появлении.
+            GameObject body = GameObject.CreatePrimitive(PrimitiveType.Capsule);
+            body.name = "Body";
+            body.transform.SetParent(root.transform, false);
+            body.transform.localPosition = new Vector3(0f, 0.85f, 0f);
+            body.transform.localScale = new Vector3(0.56f, 0.85f, 0.56f);
+            Object.DestroyImmediate(body.GetComponent<Collider>());
+            body.GetComponent<Renderer>().sharedMaterial = GetMaterial("M_Customer", Color.white);
+
+            // «Козырёк» показывает, куда смотрит покупатель.
+            CreateCube("Visor", root.transform, new Vector3(0f, 1.48f, 0.24f), new Vector3(0.32f, 0.1f, 0.12f),
+                GetMaterial("M_Device", new Color(0.12f, 0.12f, 0.14f)), keepCollider: false);
+
+            TextMeshPro bubble = CreateLabel("Bubble", root.transform, new Vector3(0f, 2.0f, 0f),
+                Quaternion.identity, new Vector2(1.8f, 0.3f), new Color(1f, 0.9f, 0.3f));
+            bubble.fontSizeMax = 2f;
+
+            SerializedObject so = new SerializedObject(customer);
+            so.FindProperty("bodyRenderer").objectReferenceValue = body.GetComponent<Renderer>();
+            so.FindProperty("bubble").objectReferenceValue = bubble;
+            so.ApplyModifiedPropertiesWithoutUndo();
+
+            GameObject prefab = PrefabUtility.SaveAsPrefabAsset(root, CustomerPrefabPath);
+            Object.DestroyImmediate(root);
+            return prefab;
+        }
+
+        /// <summary>Дверной проём в южной стене и улица перед салоном.</summary>
+        private static void CreateDoorAndStreet()
+        {
+            if (GameObject.Find("Street") != null) return;
+
+            GameObject environment = GameObject.Find("Environment");
+            Transform parent = environment != null ? environment.transform : null;
+
+            GameObject wall = GameObject.Find("Wall_S");
+            if (wall != null)
+            {
+                Undo.RecordObject(wall.transform, "Дверной проём");
+                Vector3 p = wall.transform.position;
+                float height = wall.transform.lossyScale.y;
+                float thickness = wall.transform.lossyScale.z;
+
+                // Левый кусок стены: x от −10 до −7. Проём: x от −7 до −5.
+                wall.transform.position = new Vector3(-8.5f, p.y, p.z);
+                wall.transform.localScale = new Vector3(3f, height, thickness);
+
+                GameObject right = Object.Instantiate(wall, wall.transform.parent);
+                right.name = "Wall_S2";
+                right.transform.position = new Vector3(2.5f, p.y, p.z);
+                right.transform.localScale = new Vector3(15f, height, thickness);
+                Undo.RegisterCreatedObjectUndo(right, "Дверной проём");
+
+                GameObject lintel = Object.Instantiate(wall, wall.transform.parent);
+                lintel.name = "Wall_S_Lintel";
+                lintel.transform.position = new Vector3(-6f, p.y + height * 0.5f - 0.35f, p.z);
+                lintel.transform.localScale = new Vector3(2f, 0.7f, thickness);
+                Undo.RegisterCreatedObjectUndo(lintel, "Дверной проём");
+            }
+            else
+            {
+                Debug.LogWarning("[На связи] Не найдена стена Wall_S — дверной проём сделайте вручную.");
+            }
+
+            Material street = GetMaterial("M_Street", new Color(0.32f, 0.33f, 0.35f));
+            Material curb = GetMaterial("M_Curb", new Color(0.55f, 0.55f, 0.57f));
+
+            GameObject streetGo = CreateCube("Street", parent, Vector3.zero, new Vector3(20f, 1f, 8f), street, true);
+            streetGo.transform.position = new Vector3(0f, -0.5f, -14f);
+            Undo.RegisterCreatedObjectUndo(streetGo, "Улица");
+
+            CreateWorldCube("Curb_W", parent, new Vector3(-10f, 0.5f, -14f), new Vector3(0.2f, 1f, 8f), curb);
+            CreateWorldCube("Curb_E", parent, new Vector3(10f, 0.5f, -14f), new Vector3(0.2f, 1f, 8f), curb);
+            CreateWorldCube("Curb_S", parent, new Vector3(0f, 0.5f, -18f), new Vector3(20f, 1f, 0.2f), curb);
+        }
+
+        private static void CreateWorldCube(string name, Transform parent, Vector3 worldPos, Vector3 size, Material m)
+        {
+            GameObject go = CreateCube(name, parent, Vector3.zero, size, m, true);
+            go.transform.position = worldPos;
+            Undo.RegisterCreatedObjectUndo(go, name);
+        }
+
+        /// <summary>Навигационная сетка: строится при запуске игры (NavMeshBaker).</summary>
+        private static void CreateNavigation()
+        {
+            if (Object.FindAnyObjectByType<NavMeshBaker>() != null) return;
+
+            GameObject nav = new GameObject("Navigation");
+            Undo.RegisterCreatedObjectUndo(nav, "Навигация");
+
+            NavMeshSurface surface = nav.AddComponent<NavMeshSurface>();
+            surface.collectObjects = CollectObjects.All;
+            surface.useGeometry = NavMeshCollectGeometry.PhysicsColliders;
+            // Игрок (слой Player) и слой Ignore Raycast не считаются препятствиями.
+            surface.layerMask = ~((1 << 2) | (1 << 3));
+
+            nav.AddComponent<NavMeshBaker>();
+        }
+
+        private static Transform FindOrCreatePoint(string name, Vector3 position, Quaternion rotation)
+        {
+            GameObject existing = GameObject.Find(name);
+            if (existing != null) return existing.transform;
+
+            GameObject go = new GameObject(name);
+            go.transform.SetPositionAndRotation(position, rotation);
+            Undo.RegisterCreatedObjectUndo(go, name);
+            return go.transform;
+        }
+
+        private static CheckoutQueue CreateCheckoutQueue(Vector3 position)
+        {
+            CheckoutQueue existing = Object.FindAnyObjectByType<CheckoutQueue>();
+            if (existing != null) return existing;
+
+            // Ось Z смотрит на прилавок (+Z), очередь тянется назад.
+            Transform point = FindOrCreatePoint("CheckoutQueue", position, Quaternion.identity);
+            return point.gameObject.AddComponent<CheckoutQueue>();
+        }
+
+        private static CashRegister CreateCashRegister(Vector3 position)
+        {
+            CashRegister existing = Object.FindAnyObjectByType<CashRegister>();
+            if (existing != null) return existing;
+
+            GameObject root = new GameObject("CashRegister");
+            root.transform.position = position;
+            Undo.RegisterCreatedObjectUndo(root, "Касса");
+
+            Material dark = GetMaterial("M_Device", new Color(0.12f, 0.12f, 0.14f));
+            Material screen = GetMaterial("M_Screen", new Color(0.15f, 0.35f, 0.6f));
+
+            CreateCube("Base", root.transform, new Vector3(0f, 0.06f, 0f), new Vector3(0.42f, 0.12f, 0.36f),
+                dark, keepCollider: true);
+            CreateCube("Display", root.transform, new Vector3(0f, 0.24f, -0.05f), new Vector3(0.3f, 0.2f, 0.03f),
+                screen, keepCollider: true);
+
+            TextMeshPro label = CreateLabel("Label", root.transform, new Vector3(0f, 0.24f, -0.067f),
+                Quaternion.identity, new Vector2(0.28f, 0.16f), Color.white);
+            label.text = "КАССА";
+
+            return root.AddComponent<CashRegister>();
         }
 
         private static T GetOrAdd<T>(GameObject go) where T : Component
