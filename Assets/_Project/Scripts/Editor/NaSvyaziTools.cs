@@ -35,9 +35,16 @@ namespace NaSvyazi.EditorTools
             List<ProductData> products = CreateProducts();
             GameObject boxPrefab = CreateBoxPrefab();
 
-            GameObject shelf = BuildShelf(new Vector3(-3f, 0f, 3f), Quaternion.Euler(0f, 180f, 0f));
-            SpawnBoxes(boxPrefab, products, new Vector3(-1.5f, 0.5f, -3f));
-            CreateTrashBin(new Vector3(4f, 0f, -7f));
+            // Повторный запуск не создаёт дубли: существующие объекты пропускаются.
+            GameObject shelf = GameObject.Find("Shelf");
+            if (shelf == null) shelf = BuildShelf(new Vector3(-3f, 0f, 3f), Quaternion.Euler(0f, 180f, 0f));
+            else Debug.Log("[На связи] Стеллаж уже есть — пропускаю.");
+
+            if (GameObject.Find("Boxes") == null) SpawnBoxes(boxPrefab, products, new Vector3(-1.5f, 0.5f, -3f));
+            else Debug.Log("[На связи] Тестовые коробки уже есть — пропускаю.");
+
+            if (Object.FindAnyObjectByType<TrashBin>() == null) CreateTrashBin(new Vector3(4f, 0f, -7f));
+            else Debug.Log("[На связи] Мусорный бак уже есть — пропускаю.");
 
             Selection.activeGameObject = shelf;
             MarkSceneDirty();
