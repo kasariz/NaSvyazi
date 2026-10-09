@@ -1,4 +1,5 @@
 using NaSvyazi.Core;
+using NaSvyazi.UI;
 using UnityEngine;
 
 namespace NaSvyazi.Player
@@ -48,7 +49,9 @@ namespace NaSvyazi.Player
 
         private void Update()
         {
-            if (GameInput.EscapePressed)
+            // Esc — пауза (освободить курсор). Если открыто окно, Esc закрывает его, а не ставит паузу.
+            bool escapeHandledByWindow = ModalWindow.IsAnyOpen || ModalWindow.LastClosedFrame == Time.frameCount;
+            if (GameInput.EscapePressed && !escapeHandledByWindow)
                 SetInputLocked(!InputLocked);
 
             HandleLook();

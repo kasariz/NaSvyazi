@@ -1,8 +1,10 @@
 using System.Collections.Generic;
 using System.IO;
+using NaSvyazi.Economy;
 using NaSvyazi.Interaction;
 using NaSvyazi.Products;
 using NaSvyazi.Store;
+using NaSvyazi.UI;
 using TMPro;
 using UnityEditor;
 using UnityEditor.SceneManagement;
@@ -40,6 +42,40 @@ namespace NaSvyazi.EditorTools
             Selection.activeGameObject = shelf;
             MarkSceneDirty();
             Debug.Log("[На связи] Сцена подготовлена: товары, стеллаж, коробки, мусорный бак. Сохраните сцену (Ctrl+S).");
+        }
+
+        [MenuItem("На связи/Подготовить сцену (итерация 3)", priority = 1)]
+        private static void PrepareIteration3()
+        {
+            ProductCatalog catalog = CreateCatalog();
+            GameObject boxPrefab = CreateBoxPrefab();
+
+            // Системный объект со всеми «менеджерами».
+            GameObject systems = GameObject.Find("GameSystems");
+            if (systems == null)
+            {
+                systems = new GameObject("GameSystems");
+                Undo.RegisterCreatedObjectUndo(systems, "GameSystems");
+            }
+
+            GetOrAdd<EconomyManager>(systems);
+            DeliveryService delivery = GetOrAdd<DeliveryService>(systems);
+            GetOrAdd<GameHUD>(systems);
+            OrderUI orderUI = GetOrAdd<OrderUI>(systems);
+
+            Transform deliveryPoint = CreateDeliveryPoint(new Vector3(6f, 0f, -8.6f));
+            OrderTerminal terminal = CreateOrderTerminal(new Vector3(0.9f, 1.0f, 6.0f));
+
+            // Связываем ссылки между компонентами.
+            SetReference(delivery, "boxPrefab", boxPrefab.GetComponent<ProductBox>());
+            SetReference(delivery, "deliveryPoint", deliveryPoint);
+            SetReference(orderUI, "catalog", catalog);
+            SetReference(orderUI, "delivery", delivery);
+            SetReference(terminal, "orderUI", orderUI);
+
+            Selection.activeGameObject = systems;
+            MarkSceneDirty();
+            Debug.Log("[На связи] Итерация 3: экономика, интерфейс, терминал заказа и зона доставки добавлены. Сохраните сцену (Ctrl+S).");
         }
 
         [MenuItem("На связи/Создать тестовые товары", priority = 20)]
@@ -117,6 +153,36 @@ namespace NaSvyazi.EditorTools
 
             AssetDatabase.CreateAsset(p, path);
             return p;
+        }
+
+        /// <summary>Каталог поставщика со всеми товарами из папки товаров.</summary>
+        private static ProductCatalog CreateCatalog()
+        {
+            CreateProducts();
+
+            string path = "Assets/_Project/Data/ProductCatalog.asset";
+            ProductCatalog catalog = AssetDatabase.LoadAssetAtPath<ProductCatalog>(path);
+            if (catalog == null)
+            {
+                catalog = ScriptableObject.CreateInstance<ProductCatalog>();
+                AssetDatabase.CreateAsset(catalog, path);
+            }
+
+            List<ProductData> all = new List<ProductData>();
+            foreach (string guid in AssetDatabase.FindAssets("t:ProductData", new[] { ProductsFolder }))
+            {
+                ProductData p = AssetDatabase.LoadAssetAtPath<ProductData>(AssetDatabase.GUIDToAssetPath(guid));
+                if (p != null) all.Add(p);
+            }
+
+            all.Sort((a, b) => a.category != b.category
+                ? a.category.CompareTo(b.category)
+                : string.CompareOrdinal(a.displayName, b.displayName));
+
+            catalog.products = all;
+            EditorUtility.SetDirty(catalog);
+            AssetDatabase.SaveAssets();
+            return catalog;
         }
 
         // ----------------------------------------------------------------
@@ -250,6 +316,70 @@ namespace NaSvyazi.EditorTools
             box.center = new Vector3(0f, height * 0.5f, 0f);
 
             label.text = "Пусто";
+        }
+
+        // ----------------------------------------------------------------
+        // Зона доставки и терминал заказа
+        // ----------------------------------------------------------------
+
+        private static Transform CreateDeliveryPoint(Vector3 position)
+        {
+            GameObject existing = GameObject.Find("DeliveryPoint");
+            if (existing != null) return existing.transform;
+
+            GameObject point = new GameObject("DeliveryPoint");
+            point.transform.position = position;
+            Undo.RegisterCreatedObjectUndo(point, "Зона доставки");
+
+            // Жёлтая разметка на полу (без коллайдера).
+            CreateCube("Marker", point.transform, new Vector3(0f, 0.005f, 0.35f), new Vector3(1.6f, 0.01f, 1.2f),
+                GetMaterial("M_Delivery", new Color(0.95f, 0.78f, 0.15f)), keepCollider: false);
+
+            TextMeshPro label = CreateLabel("Label", point.transform, new Vector3(0f, 0.012f, 1.1f),
+                Quaternion.Euler(90f, 180f, 0f), new Vector2(1.6f, 0.25f), new Color(0.1f, 0.1f, 0.1f));
+            label.text = "ЗОНА ДОСТАВКИ";
+            label.fontSizeMax = 2f;
+
+            return point.transform;
+        }
+
+        private static OrderTerminal CreateOrderTerminal(Vector3 position)
+        {
+            OrderTerminal existing = Object.FindAnyObjectByType<OrderTerminal>();
+            if (existing != null) return existing;
+
+            GameObject root = new GameObject("OrderTerminal");
+            root.transform.position = position;
+            Undo.RegisterCreatedObjectUndo(root, "Терминал заказа");
+
+            Material dark = GetMaterial("M_Device", new Color(0.12f, 0.12f, 0.14f));
+            Material screen = GetMaterial("M_Screen", new Color(0.15f, 0.35f, 0.6f));
+
+            CreateCube("Stand", root.transform, new Vector3(0f, 0.08f, 0.03f), new Vector3(0.08f, 0.16f, 0.06f),
+                dark, keepCollider: false);
+            CreateCube("Monitor", root.transform, new Vector3(0f, 0.34f, 0f), new Vector3(0.56f, 0.36f, 0.05f),
+                dark, keepCollider: true);
+            CreateCube("Screen", root.transform, new Vector3(0f, 0.34f, -0.026f), new Vector3(0.52f, 0.32f, 0.004f),
+                screen, keepCollider: false);
+
+            TextMeshPro label = CreateLabel("Label", root.transform, new Vector3(0f, 0.34f, -0.03f),
+                Quaternion.identity, new Vector2(0.48f, 0.2f), Color.white);
+            label.text = "ЗАКАЗ\nТОВАРА";
+
+            return root.AddComponent<OrderTerminal>();
+        }
+
+        private static T GetOrAdd<T>(GameObject go) where T : Component
+        {
+            T component = go.GetComponent<T>();
+            return component != null ? component : go.AddComponent<T>();
+        }
+
+        private static void SetReference(Object target, string field, Object value)
+        {
+            SerializedObject so = new SerializedObject(target);
+            so.FindProperty(field).objectReferenceValue = value;
+            so.ApplyModifiedPropertiesWithoutUndo();
         }
 
         // ----------------------------------------------------------------
