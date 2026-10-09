@@ -311,8 +311,9 @@ namespace NaSvyazi.EditorTools
                 GetMaterial("M_Accent", accent));
 
             // Потолок не отбрасывает тень — внутрь салона по-прежнему попадает солнечный свет.
+            // Коллайдер нужен, чтобы сквозь потолок нельзя было выпрыгнуть.
             GameObject ceiling = WorldCube(d, "Ceiling", new Vector3(0f, 3.1f, 0f), new Vector3(20f, 0.2f, 20f),
-                GetMaterial("M_Ceiling", new Color(0.96f, 0.96f, 0.96f)));
+                GetMaterial("M_Ceiling", new Color(0.96f, 0.96f, 0.96f)), withCollider: true);
             ceiling.GetComponent<Renderer>().shadowCastingMode = ShadowCastingMode.Off;
 
             Material lamp = GetEmissiveMaterial("M_Lamp", new Color(1f, 0.98f, 0.92f), 2f);
@@ -324,12 +325,31 @@ namespace NaSvyazi.EditorTools
             // Фирменная полоса и логотип на стене за прилавком.
             WorldCube(d, "WallStripe", new Vector3(0f, 2.55f, 9.885f), new Vector3(19.6f, 0.22f, 0.02f),
                 GetMaterial("M_Accent", accent));
+            // Вывеска над входом (снаружи) и коврик у двери.
+            WorldCube(d, "Signboard", new Vector3(-6f, 2.65f, -10.13f), new Vector3(3.2f, 0.6f, 0.04f),
+                GetMaterial("M_Signboard", dark));
+            WorldCube(d, "EntranceMat", new Vector3(-6f, 0.005f, -9.3f), new Vector3(2f, 0.01f, 1.2f),
+                GetMaterial("M_Mat", new Color(0.25f, 0.25f, 0.27f)));
+
+            CreateDecorTexts(d);
+        }
+
+        private static readonly string[] DecorTextNames =
+        {
+            "Logo", "LogoSub", "Poster_Max_Text", "Poster_Connect_Text", "Poster_Phones_Text", "SignboardText"
+        };
+
+        /// <summary>Логотип, тексты постеров и вывески.</summary>
+        private static void CreateDecorTexts(Transform d)
+        {
+            Color accent = new Color(0.86f, 0.18f, 0.55f);
+            Color dark = new Color(0.1f, 0.1f, 0.12f);
+
             WorldLabel(d, "Logo", new Vector3(0f, 1.95f, 9.87f), Quaternion.identity, new Vector2(7f, 0.9f),
                 "НА СВЯЗИ", dark, 9f);
             WorldLabel(d, "LogoSub", new Vector3(0f, 1.4f, 9.87f), Quaternion.identity, new Vector2(7f, 0.35f),
                 "салон связи", new Color(0.35f, 0.35f, 0.38f), 3f);
 
-            // Рекламные постеры.
             CreatePoster(d, "Poster_Max", new Vector3(-9.88f, 1.7f, -2f), -90f, new Vector2(1.6f, 1.1f), accent,
                 "Тариф «Максимум»\nбезлимитный интернет\n850 руб./мес", Color.white);
             CreatePoster(d, "Poster_Connect", new Vector3(-9.88f, 1.7f, 4f), -90f, new Vector2(1.6f, 1.1f), dark,
@@ -337,27 +357,62 @@ namespace NaSvyazi.EditorTools
             CreatePoster(d, "Poster_Phones", new Vector3(9.88f, 1.7f, 0f), 90f, new Vector2(1.8f, 1.1f),
                 new Color(0.15f, 0.35f, 0.6f), "Новые смартфоны\nуже в продаже", Color.white);
 
-            // Вывеска над входом (снаружи) и коврик у двери.
-            WorldCube(d, "Signboard", new Vector3(-6f, 2.65f, -10.13f), new Vector3(3.2f, 0.6f, 0.04f),
-                GetMaterial("M_Signboard", dark));
             WorldLabel(d, "SignboardText", new Vector3(-6f, 2.65f, -10.155f), Quaternion.identity,
                 new Vector2(3f, 0.5f), "НА СВЯЗИ", accent, 6f);
-            WorldCube(d, "EntranceMat", new Vector3(-6f, 0.005f, -9.3f), new Vector3(2f, 0.01f, 1.2f),
-                GetMaterial("M_Mat", new Color(0.25f, 0.25f, 0.27f)));
         }
 
-        private static GameObject WorldCube(Transform parent, string name, Vector3 position, Vector3 size, Material m)
+        [MenuItem("На связи/Исправить надписи и потолок", priority = 13)]
+        private static void FixDecor()
         {
-            GameObject go = CreateCube(name, parent, Vector3.zero, size, m, keepCollider: false);
+            GameObject decor = GameObject.Find("Decor");
+            if (decor == null)
+            {
+                Debug.LogError("[На связи] Оформления ещё нет — выполните итерацию 7.");
+                return;
+            }
+
+            // Старые надписи (со сбитыми координатами) удаляем и создаём заново.
+            foreach (string name in DecorTextNames)
+            {
+                GameObject old = GameObject.Find(name);
+                while (old != null)
+                {
+                    Undo.DestroyObjectImmediate(old);
+                    old = GameObject.Find(name);
+                }
+            }
+            CreateDecorTexts(decor.transform);
+
+            GameObject ceiling = GameObject.Find("Ceiling");
+            if (ceiling != null && ceiling.GetComponent<Collider>() == null)
+                Undo.AddComponent<BoxCollider>(ceiling);
+
+            MarkSceneDirty();
+            Debug.Log("[На связи] Надписи пересозданы, у потолка появился коллайдер. Сохраните сцену (Ctrl+S).");
+        }
+
+        private static GameObject WorldCube(Transform parent, string name, Vector3 position, Vector3 size, Material m,
+            bool withCollider = false)
+        {
+            GameObject go = CreateCube(name, parent, Vector3.zero, size, m, keepCollider: withCollider);
             go.transform.position = position;
             return go;
         }
 
+        /// <summary>
+        /// Надпись в мире. Положение и поворот задаются пустому объекту-держателю,
+        /// а текст стоит внутри него в нуле: так координаты не сбрасываются
+        /// (у текстового RectTransform под обычным Transform сбивались X и Y).
+        /// </summary>
         private static TextMeshPro WorldLabel(Transform parent, string name, Vector3 position, Quaternion rotation,
             Vector2 size, string text, Color color, float maxFontSize)
         {
-            TextMeshPro label = CreateLabel(name, parent, Vector3.zero, Quaternion.identity, size, color);
-            label.transform.SetPositionAndRotation(position, rotation);
+            GameObject holder = new GameObject(name);
+            holder.transform.SetParent(parent, false);
+            holder.transform.SetPositionAndRotation(position, rotation);
+            Undo.RegisterCreatedObjectUndo(holder, name);
+
+            TextMeshPro label = CreateLabel("Text", holder.transform, Vector3.zero, Quaternion.identity, size, color);
             label.fontSizeMax = maxFontSize;
             label.text = text;
             return label;
@@ -368,9 +423,13 @@ namespace NaSvyazi.EditorTools
             Vector2 size, Color background, string text, Color textColor)
         {
             Quaternion rotation = Quaternion.Euler(0f, rotationY, 0f);
-            GameObject back = WorldCube(parent, name, position, new Vector3(size.x, size.y, 0.02f),
-                GetMaterial($"M_{name}", background));
-            back.transform.rotation = rotation;
+
+            if (GameObject.Find(name) == null)
+            {
+                GameObject back = WorldCube(parent, name, position, new Vector3(size.x, size.y, 0.02f),
+                    GetMaterial($"M_{name}", background));
+                back.transform.rotation = rotation;
+            }
 
             Vector3 textPosition = position - rotation * Vector3.forward * 0.015f;
             WorldLabel(parent, name + "_Text", textPosition, rotation, size * 0.88f, text, textColor, 3f);

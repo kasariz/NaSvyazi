@@ -48,8 +48,12 @@ namespace NaSvyazi.Customers
     public class Customer : MonoBehaviour
     {
         private static readonly int BaseColorId = Shader.PropertyToID("_BaseColor");
+        private static readonly int SpeedId = Animator.StringToHash("Speed");
 
         [SerializeField] private Renderer bodyRenderer;
+
+        [Tooltip("Аниматор модели персонажа (параметр Speed: ожидание ↔ ходьба). Для капсулы не нужен")]
+        [SerializeField] private Animator animator;
         [SerializeField] private TMP_Text bubble;
 
         [Header("Поведение")]
@@ -204,6 +208,9 @@ namespace NaSvyazi.Customers
             }
 
             UpdateBubble();
+
+            // Анимация ходьбы следует за реальной скоростью агента.
+            if (animator != null) animator.SetFloat(SpeedId, agent.velocity.magnitude);
         }
 
         // --- Покупки ---

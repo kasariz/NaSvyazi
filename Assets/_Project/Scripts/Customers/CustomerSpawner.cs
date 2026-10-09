@@ -16,6 +16,9 @@ namespace NaSvyazi.Customers
     public class CustomerSpawner : MonoBehaviour
     {
         [SerializeField] private Customer customerPrefab;
+
+        [Tooltip("Варианты внешности покупателей (если пусто — используется Customer Prefab)")]
+        [SerializeField] private List<Customer> customerPrefabs = new List<Customer>();
         [SerializeField] private Transform spawnPoint;
         [SerializeField] private CheckoutQueue queue;
         [SerializeField] private ProductCatalog catalog;
@@ -50,7 +53,7 @@ namespace NaSvyazi.Customers
         private void Update()
         {
             active.RemoveAll(c => c == null);
-            if (!storeOpen || customerPrefab == null || spawnPoint == null) return;
+            if (!storeOpen || spawnPoint == null || (customerPrefab == null && customerPrefabs.Count == 0)) return;
 
             timer -= Time.deltaTime;
             if (timer > 0f) return;
@@ -68,7 +71,12 @@ namespace NaSvyazi.Customers
             List<ProductData> wants = wantsConsultation ? null : PickShoppingList();
             if (!wantsConsultation && wants.Count == 0) return;
 
-            Customer c = Instantiate(customerPrefab, spawnPoint.position, spawnPoint.rotation);
+            Customer prefab = customerPrefabs.Count > 0
+                ? customerPrefabs[Random.Range(0, customerPrefabs.Count)]
+                : customerPrefab;
+            if (prefab == null) return;
+
+            Customer c = Instantiate(prefab, spawnPoint.position, spawnPoint.rotation);
             c.name = $"Customer_{active.Count + 1}";
 
             if (wantsConsultation)
