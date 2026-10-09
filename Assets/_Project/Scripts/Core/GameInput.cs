@@ -54,6 +54,14 @@ namespace NaSvyazi.Core
         public static bool SecondaryPressed =>
             Mouse.current != null && Mouse.current.rightButton.wasPressedThisFrame;
 
+        /// <summary>ЛКМ удерживается — для непрерывной выкладки товара.</summary>
+        public static bool PrimaryHeld =>
+            Mouse.current != null && Mouse.current.leftButton.isPressed;
+
+        /// <summary>ПКМ удерживается.</summary>
+        public static bool SecondaryHeld =>
+            Mouse.current != null && Mouse.current.rightButton.isPressed;
+
         /// <summary>Пауза / освобождение курсора (Esc).</summary>
         public static bool EscapePressed =>
             Keyboard.current != null && Keyboard.current.escapeKey.wasPressedThisFrame;
