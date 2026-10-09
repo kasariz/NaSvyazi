@@ -123,6 +123,101 @@ namespace NaSvyazi.EditorTools
             Debug.Log("[На связи] Итерация 4: покупатели, цены, касса, навигация, дверь и улица добавлены. Сохраните сцену (Ctrl+S).");
         }
 
+        /// <summary>
+        /// Расставляет окружение и основные объекты по эталонным мировым координатам.
+        /// Пол — верхняя грань на высоте 0, все остальные объекты стоят на нём.
+        /// </summary>
+        [MenuItem("На связи/Выровнять стены, пол и объекты", priority = 10)]
+        private static void AlignLayout()
+        {
+            GameObject environment = GameObject.Find("Environment");
+            if (environment != null)
+            {
+                Undo.RecordObject(environment.transform, "Выравнивание");
+                environment.transform.SetPositionAndRotation(Vector3.zero, Quaternion.identity);
+                environment.transform.localScale = Vector3.one;
+            }
+
+            // Пол: куб 20×1×20 с верхней гранью на y = 0 (или плоскость 2×1×2 на y = 0).
+            GameObject floor = GameObject.Find("Floor");
+            if (floor != null)
+            {
+                MeshFilter mf = floor.GetComponent<MeshFilter>();
+                bool isPlane = mf != null && mf.sharedMesh != null && mf.sharedMesh.name == "Plane";
+                if (isPlane) Align("Floor", new Vector3(0f, 0f, 0f), new Vector3(2f, 1f, 2f));
+                else Align("Floor", new Vector3(0f, -0.5f, 0f), new Vector3(20f, 1f, 20f));
+            }
+
+            Align("Wall_N", new Vector3(0f, 1.5f, 10f), new Vector3(20f, 3f, 0.2f));
+            Align("Wall_E", new Vector3(10f, 1.5f, 0f), new Vector3(0.2f, 3f, 20f));
+            Align("Wall_W", new Vector3(-10f, 1.5f, 0f), new Vector3(0.2f, 3f, 20f));
+
+            // Южная стена с дверным проёмом x ∈ [−7; −5].
+            bool hasDoor = GameObject.Find("Wall_S2") != null;
+            if (hasDoor)
+            {
+                Align("Wall_S", new Vector3(-8.5f, 1.5f, -10f), new Vector3(3f, 3f, 0.2f));
+                Align("Wall_S2", new Vector3(2.5f, 1.5f, -10f), new Vector3(15f, 3f, 0.2f));
+                Align("Wall_S_Lintel", new Vector3(-6f, 2.65f, -10f), new Vector3(2f, 0.7f, 0.2f));
+            }
+            else
+            {
+                Align("Wall_S", new Vector3(0f, 1.5f, -10f), new Vector3(20f, 3f, 0.2f));
+            }
+
+            Align("Counter", new Vector3(0f, 0.5f, 6f), new Vector3(3f, 1f, 0.8f));
+
+            Align("Street", new Vector3(0f, -0.5f, -14f), new Vector3(20f, 1f, 8f));
+            Align("Curb_W", new Vector3(-10f, 0.5f, -14f), new Vector3(0.2f, 1f, 8f));
+            Align("Curb_E", new Vector3(10f, 0.5f, -14f), new Vector3(0.2f, 1f, 8f));
+            Align("Curb_S", new Vector3(0f, 0.5f, -18f), new Vector3(20f, 1f, 0.2f));
+
+            // Объекты салона (масштаб не меняется).
+            AlignPosition("Player", new Vector3(0f, 0f, -5f), Quaternion.identity);
+            AlignPosition("Shelf", new Vector3(-3f, 0f, 3f), Quaternion.Euler(0f, 180f, 0f));
+            AlignPosition("TrashBin", new Vector3(4f, 0.35f, -7f), Quaternion.identity);
+            AlignPosition("DeliveryPoint", new Vector3(6f, 0f, -8.6f), Quaternion.identity);
+            AlignPosition("OrderTerminal", new Vector3(0.9f, 1f, 6f), Quaternion.identity);
+            AlignPosition("CashRegister", new Vector3(-0.8f, 1f, 6f), Quaternion.identity);
+            AlignPosition("CheckoutQueue", new Vector3(-0.8f, 0f, 5f), Quaternion.identity);
+            AlignPosition("CustomerSpawn", new Vector3(-6f, 0f, -15f), Quaternion.identity);
+
+            StoreSign sign = Object.FindAnyObjectByType<StoreSign>();
+            if (sign != null)
+            {
+                Undo.RecordObject(sign.transform, "Выравнивание");
+                sign.transform.SetPositionAndRotation(new Vector3(3f, 1.6f, 9.875f), Quaternion.identity);
+            }
+
+            MarkSceneDirty();
+            Debug.Log("[На связи] Стены, пол и объекты выровнены. Сохраните сцену (Ctrl+S).");
+        }
+
+        private static void Align(string name, Vector3 worldPos, Vector3 worldScale)
+        {
+            GameObject go = GameObject.Find(name);
+            if (go == null) return;
+
+            Transform t = go.transform;
+            Undo.RecordObject(t, "Выравнивание");
+            t.rotation = Quaternion.identity;
+            t.position = worldPos;
+
+            // Масштаб задаётся в мировых единицах с учётом масштаба родителя.
+            Vector3 parentScale = t.parent != null ? t.parent.lossyScale : Vector3.one;
+            t.localScale = new Vector3(worldScale.x / parentScale.x, worldScale.y / parentScale.y,
+                worldScale.z / parentScale.z);
+        }
+
+        private static void AlignPosition(string name, Vector3 worldPos, Quaternion rotation)
+        {
+            GameObject go = GameObject.Find(name);
+            if (go == null) return;
+
+            Undo.RecordObject(go.transform, "Выравнивание");
+            go.transform.SetPositionAndRotation(worldPos, rotation);
+        }
+
         [MenuItem("На связи/Создать тестовые товары", priority = 20)]
         private static void MenuCreateProducts()
         {
