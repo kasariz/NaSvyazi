@@ -322,8 +322,8 @@ namespace NaSvyazi.EditorTools
             AlignPosition("Shelf", new Vector3(-3f, 0f, 3f), Quaternion.Euler(0f, 180f, 0f));
             AlignPosition("TrashBin", new Vector3(4f, 0.35f, -7f), Quaternion.identity);
             AlignPosition("DeliveryPoint", new Vector3(6f, 0f, -8.6f), Quaternion.identity);
-            AlignPosition("OrderTerminal", new Vector3(0.9f, 1f, 6f), Quaternion.identity);
-            AlignPosition("CashRegister", new Vector3(-0.8f, 1f, 6f), Quaternion.identity);
+            AlignPosition("OrderTerminal", new Vector3(0.9f, 1f, 6f), FacingCashier);
+            AlignPosition("CashRegister", new Vector3(-0.8f, 1f, 6f), FacingCashier);
             AlignPosition("CheckoutQueue", new Vector3(-0.8f, 0f, 5f), Quaternion.identity);
             AlignPosition("CustomerSpawn", new Vector3(-6f, 0f, -15f), Quaternion.identity);
 
@@ -639,8 +639,9 @@ namespace NaSvyazi.EditorTools
             OrderTerminal existing = Object.FindAnyObjectByType<OrderTerminal>();
             if (existing != null) return existing;
 
+            // Экран смотрит на кассира (за прилавком, со стороны +Z).
             GameObject root = new GameObject("OrderTerminal");
-            root.transform.position = position;
+            root.transform.SetPositionAndRotation(position, FacingCashier);
             Undo.RegisterCreatedObjectUndo(root, "Терминал заказа");
 
             Material dark = GetMaterial("M_Device", new Color(0.12f, 0.12f, 0.14f));
@@ -815,23 +816,69 @@ namespace NaSvyazi.EditorTools
             CashRegister existing = Object.FindAnyObjectByType<CashRegister>();
             if (existing != null) return existing;
 
+            // Дисплей смотрит на кассира (за прилавком, со стороны +Z).
             GameObject root = new GameObject("CashRegister");
-            root.transform.position = position;
+            root.transform.SetPositionAndRotation(position, FacingCashier);
             Undo.RegisterCreatedObjectUndo(root, "Касса");
 
             Material dark = GetMaterial("M_Device", new Color(0.12f, 0.12f, 0.14f));
             Material screen = GetMaterial("M_Screen", new Color(0.15f, 0.35f, 0.6f));
 
-            CreateCube("Base", root.transform, new Vector3(0f, 0.06f, 0f), new Vector3(0.42f, 0.12f, 0.36f),
+            // Корпус с клавиатурой, стойка и наклонённый дисплей — без зазоров между деталями.
+            CreateCube("Base", root.transform, new Vector3(0f, 0.05f, 0f), new Vector3(0.42f, 0.1f, 0.36f),
                 dark, keepCollider: true);
-            CreateCube("Display", root.transform, new Vector3(0f, 0.24f, -0.05f), new Vector3(0.3f, 0.2f, 0.03f),
-                screen, keepCollider: true);
+            CreateCube("Keys", root.transform, new Vector3(0f, 0.105f, -0.08f), new Vector3(0.3f, 0.01f, 0.14f),
+                GetMaterial("M_Keys", new Color(0.35f, 0.35f, 0.38f)), keepCollider: false);
+            CreateCube("Neck", root.transform, new Vector3(0f, 0.15f, 0.1f), new Vector3(0.06f, 0.1f, 0.05f),
+                dark, keepCollider: false);
 
-            TextMeshPro label = CreateLabel("Label", root.transform, new Vector3(0f, 0.24f, -0.067f),
-                Quaternion.identity, new Vector2(0.28f, 0.16f), Color.white);
+            GameObject screenPivot = new GameObject("ScreenPivot");
+            screenPivot.transform.SetParent(root.transform, false);
+            screenPivot.transform.localPosition = new Vector3(0f, 0.29f, 0.1f);
+            screenPivot.transform.localRotation = Quaternion.Euler(12f, 0f, 0f); // лёгкий наклон назад
+
+            CreateCube("Frame", screenPivot.transform, Vector3.zero, new Vector3(0.32f, 0.2f, 0.03f),
+                dark, keepCollider: true);
+            CreateCube("Display", screenPivot.transform, new Vector3(0f, 0f, -0.016f),
+                new Vector3(0.29f, 0.17f, 0.004f), screen, keepCollider: false);
+
+            TextMeshPro label = CreateLabel("Label", screenPivot.transform, new Vector3(0f, 0f, -0.02f),
+                Quaternion.identity, new Vector2(0.27f, 0.15f), Color.white);
             label.text = "КАССА";
 
             return root.AddComponent<CashRegister>();
+        }
+
+        /// <summary>Поворот устройств на прилавке: лицевой стороной к кассиру.</summary>
+        private static readonly Quaternion FacingCashier = Quaternion.Euler(0f, 180f, 0f);
+
+        [MenuItem("На связи/Пересоздать кассу и терминал", priority = 11)]
+        private static void RebuildDevices()
+        {
+            // Запоминаем связи старых объектов.
+            CheckoutQueue queue = Object.FindAnyObjectByType<CheckoutQueue>();
+            ChangeUI changeUI = Object.FindAnyObjectByType<ChangeUI>();
+            ConsultationUI consultationUI = Object.FindAnyObjectByType<ConsultationUI>();
+            OrderUI orderUI = Object.FindAnyObjectByType<OrderUI>();
+            TariffCatalog tariffs = AssetDatabase.LoadAssetAtPath<TariffCatalog>("Assets/_Project/Data/TariffCatalog.asset");
+
+            CashRegister oldRegister = Object.FindAnyObjectByType<CashRegister>();
+            if (oldRegister != null) Undo.DestroyObjectImmediate(oldRegister.gameObject);
+            OrderTerminal oldTerminal = Object.FindAnyObjectByType<OrderTerminal>();
+            if (oldTerminal != null) Undo.DestroyObjectImmediate(oldTerminal.gameObject);
+
+            CashRegister register = CreateCashRegister(new Vector3(-0.8f, 1.0f, 6.0f));
+            OrderTerminal terminal = CreateOrderTerminal(new Vector3(0.9f, 1.0f, 6.0f));
+
+            if (queue != null) SetReference(register, "queue", queue);
+            if (changeUI != null) SetReference(register, "changeUI", changeUI);
+            if (consultationUI != null) SetReference(register, "consultationUI", consultationUI);
+            if (tariffs != null) SetReference(register, "tariffCatalog", tariffs);
+            if (orderUI != null) SetReference(terminal, "orderUI", orderUI);
+
+            Selection.activeGameObject = register.gameObject;
+            MarkSceneDirty();
+            Debug.Log("[На связи] Касса и терминал пересозданы и повёрнуты к кассиру. Сохраните сцену (Ctrl+S).");
         }
 
         private static T GetOrAdd<T>(GameObject go) where T : Component

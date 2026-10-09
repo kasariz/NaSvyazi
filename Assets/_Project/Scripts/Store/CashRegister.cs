@@ -34,10 +34,11 @@ namespace NaSvyazi.Store
         [SerializeField] private TariffCatalog tariffCatalog;
 
         [Header("Раскладка товаров на прилавке (относительно кассы)")]
-        [Tooltip("Место первого товара: справа от кассы, на свободной части прилавка")]
-        [SerializeField] private Vector3 itemsStart = new Vector3(0.38f, 0f, 0.08f);
-        [SerializeField] private Vector3 itemsColumnStep = new Vector3(0.17f, 0f, 0f);
-        [SerializeField] private Vector3 itemsRowStep = new Vector3(0f, 0f, -0.18f);
+        // Касса повёрнута к кассиру (на 180°), поэтому «вправо от кассы» в мире — это −X в её осях.
+        [Tooltip("Место первого товара: справа от кассы (если смотреть из-за прилавка)")]
+        [SerializeField] private Vector3 itemsStart = new Vector3(-0.38f, 0f, -0.08f);
+        [SerializeField] private Vector3 itemsColumnStep = new Vector3(-0.17f, 0f, 0f);
+        [SerializeField] private Vector3 itemsRowStep = new Vector3(0f, 0f, 0.18f);
         [SerializeField] private int itemsColumns = 5;
 
         private readonly List<CheckoutItem> items = new List<CheckoutItem>();
