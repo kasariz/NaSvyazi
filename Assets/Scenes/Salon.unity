@@ -512,9 +512,10 @@ MonoBehaviour:
   changeUI: {fileID: 1230941326}
   consultationUI: {fileID: 1230941325}
   tariffCatalog: {fileID: 11400000, guid: 119bdf3491ded444db378a84bf2b2e75, type: 2}
-  itemsOrigin: {x: -0.22, y: 0, z: -0.22}
-  itemSpacing: 0.16
-  itemsPerRow: 4
+  itemsStart: {x: 0.38, y: 0, z: 0.08}
+  itemsColumnStep: {x: 0.17, y: 0, z: 0}
+  itemsRowStep: {x: 0, y: 0, z: -0.18}
+  itemsColumns: 5
 --- !u!4 &176661880
 Transform:
   m_ObjectHideFlags: 0
@@ -4745,6 +4746,10 @@ GameObject:
   - component: {fileID: 1230941327}
   - component: {fileID: 1230941326}
   - component: {fileID: 1230941325}
+  - component: {fileID: 1230941331}
+  - component: {fileID: 1230941330}
+  - component: {fileID: 1230941329}
+  - component: {fileID: 1230941328}
   m_Layer: 0
   m_Name: GameSystems
   m_TagString: Untagged
@@ -4913,6 +4918,71 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::NaSvyazi.Economy.ReputationManager
   startReputation: 50
+--- !u!114 &1230941328
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1230941316}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 88e224dbeb62a9e46b21688a619b3e98, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::NaSvyazi.Save.SaveSystem
+  catalog: {fileID: 11400000, guid: ee3c4e2cab3e49f4b982160b7ea359dc, type: 2}
+  boxPrefab: {fileID: 4327763450294380803, guid: 95d25f7ca53ee9645b608852b14efef0, type: 3}
+  loadOnStart: 1
+--- !u!114 &1230941329
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1230941316}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 1811c6f0337eda24e9d5434a6a4487a6, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::NaSvyazi.Store.DayManager
+  openHour: 9
+  closeHour: 21
+  realSecondsPerGameMinute: 0.75
+  dailyRent: 800
+  closingTimeout: 120
+  reportUI: {fileID: 1230941330}
+--- !u!114 &1230941330
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1230941316}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 96f0abcc7c30d5246810880e7887a85e, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::NaSvyazi.UI.DayReportUI
+--- !u!114 &1230941331
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1230941316}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 22e79a5a9f2190f429d81032d8f49022, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::NaSvyazi.Economy.UnlockManager
+  startUnlocked: 000000000100000002000000
+  unlocks:
+  - category: 3
+    cost: 3000
+    minReputation: 40
+  - category: 4
+    cost: 10000
+    minReputation: 55
 --- !u!1 &1326064072
 GameObject:
   m_ObjectHideFlags: 0
