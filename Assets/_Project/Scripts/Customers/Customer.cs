@@ -101,9 +101,10 @@ namespace NaSvyazi.Customers
             }
         }
 
-        /// <summary>Готов платить: первый в очереди и уже дошёл до кассы.</summary>
+        /// <summary>Готов платить: первый в очереди и действительно стоит у кассы.</summary>
         public bool IsReadyToPay =>
-            State == CustomerState.InQueue && queue != null && queue.IndexOf(this) == 0 && HasArrived();
+            State == CustomerState.InQueue && queue != null && queue.IndexOf(this) == 0
+            && queueIndex == 0 && IsNear(queue.GetSpot(0), 0.4f);
 
         private void Awake()
         {
@@ -294,6 +295,7 @@ namespace NaSvyazi.Customers
             queueIndex = -1;
             patienceTimer = queuePatience;
             SetState(CustomerState.InQueue);
+            UpdateQueue(); // сразу направляемся к своему месту в очереди
         }
 
         private void UpdateQueue()
@@ -359,6 +361,14 @@ namespace NaSvyazi.Customers
         {
             if (!agent.isOnNavMesh || agent.pathPending) return false;
             return agent.remainingDistance <= agent.stoppingDistance + 0.1f;
+        }
+
+        /// <summary>Стоит ли покупатель рядом с точкой (по горизонтали).</summary>
+        private bool IsNear(Vector3 point, float distance)
+        {
+            Vector3 d = point - transform.position;
+            d.y = 0f;
+            return d.sqrMagnitude <= distance * distance && !agent.pathPending;
         }
 
         private void FaceTowards(Vector3 target)

@@ -78,7 +78,8 @@ namespace NaSvyazi.UI
 
             TextMeshProUGUI internet = UIFactory.CreateText("Internet", card.transform, tariff.InternetText, 21f,
                 UIFactory.TextColor, TextAlignmentOptions.Center);
-            UIFactory.SetSize(internet, height: 56f);
+            FitText(internet, 14f);
+            UIFactory.SetSize(internet, height: 34f);
 
             TextMeshProUGUI minutes = UIFactory.CreateText("Minutes", card.transform, tariff.MinutesText, 21f,
                 UIFactory.TextColor, TextAlignmentOptions.Center);
@@ -86,13 +87,22 @@ namespace NaSvyazi.UI
 
             TextMeshProUGUI desc = UIFactory.CreateText("Desc", card.transform, tariff.description, 17f,
                 UIFactory.MutedTextColor, TextAlignmentOptions.Top);
-            UIFactory.SetSize(desc, flexibleHeight: 1f);
+            FitText(desc, 12f);
+            UIFactory.SetSize(desc, height: 110f, flexibleHeight: 1f);
 
             Button offer = UIFactory.CreateButton("Offer", card.transform, "Предложить",
                 () => Choose(tariff), UIFactory.ButtonColor);
             UIFactory.SetSize(offer, height: 52f);
 
             return card.gameObject;
+        }
+
+        /// <summary>Уменьшать шрифт, если текст не помещается в отведённое место.</summary>
+        private static void FitText(TextMeshProUGUI text, float minSize)
+        {
+            text.enableAutoSizing = true;
+            text.fontSizeMin = minSize;
+            text.fontSizeMax = text.fontSize;
         }
 
         private void Build()
@@ -105,7 +115,7 @@ namespace NaSvyazi.UI
 
             Image window = UIFactory.CreatePanel("Window", canvas.transform, UIFactory.PanelColor);
             UIFactory.Place(window.rectTransform, new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f),
-                Vector2.zero, new Vector2(1440f, 760f));
+                Vector2.zero, new Vector2(1440f, 900f));
             UIFactory.AddVerticalLayout(window.gameObject, 14f, 32);
 
             TextMeshProUGUI title = UIFactory.CreateText("Title", window.transform, "Консультация по тарифу", 34f,
@@ -119,6 +129,7 @@ namespace NaSvyazi.UI
 
             requestText = UIFactory.CreateText("Request", window.transform, "", 30f, UIFactory.TextColor);
             requestText.fontStyle = FontStyles.Italic;
+            FitText(requestText, 20f);
             UIFactory.SetSize(requestText, height: 80f);
 
             TextMeshProUGUI rule = UIFactory.CreateText("Rule", window.transform,

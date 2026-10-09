@@ -34,9 +34,11 @@ namespace NaSvyazi.Store
         [SerializeField] private TariffCatalog tariffCatalog;
 
         [Header("Раскладка товаров на прилавке (относительно кассы)")]
-        [SerializeField] private Vector3 itemsOrigin = new Vector3(-0.22f, 0f, -0.22f);
-        [SerializeField] private float itemSpacing = 0.16f;
-        [SerializeField] private int itemsPerRow = 4;
+        [Tooltip("Место первого товара: справа от кассы, на свободной части прилавка")]
+        [SerializeField] private Vector3 itemsStart = new Vector3(0.38f, 0f, 0.08f);
+        [SerializeField] private Vector3 itemsColumnStep = new Vector3(0.17f, 0f, 0f);
+        [SerializeField] private Vector3 itemsRowStep = new Vector3(0f, 0f, -0.18f);
+        [SerializeField] private int itemsColumns = 5;
 
         private readonly List<CheckoutItem> items = new List<CheckoutItem>();
         private TMP_Text display;
@@ -93,8 +95,8 @@ namespace NaSvyazi.Store
         {
             for (int i = 0; i < basket.Count; i++)
             {
-                Vector3 local = itemsOrigin + new Vector3(-(i % itemsPerRow) * itemSpacing, 0f,
-                    (i / itemsPerRow) * 0.15f);
+                Vector3 local = itemsStart + itemsColumnStep * (i % itemsColumns)
+                                           + itemsRowStep * (i / itemsColumns);
 
                 GameObject go = new GameObject($"CheckoutItem_{i}");
                 go.transform.SetPositionAndRotation(transform.TransformPoint(local), transform.rotation);
