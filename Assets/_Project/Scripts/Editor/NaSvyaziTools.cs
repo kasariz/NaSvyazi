@@ -152,6 +152,56 @@ namespace NaSvyazi.EditorTools
             Debug.Log("[На связи] Итерация 5: касса со сканированием и сдачей, консультации по тарифам, репутация. Сохраните сцену (Ctrl+S).");
         }
 
+        [MenuItem("На связи/Подготовить сцену (итерация 6)", priority = 4)]
+        private static void PrepareIteration6()
+        {
+            GameObject systems = GameObject.Find("GameSystems");
+            if (systems == null || Object.FindAnyObjectByType<CashRegister>() == null)
+            {
+                Debug.LogError("[На связи] Сначала выполните итерации 3–5.");
+                return;
+            }
+
+            ProductCatalog catalog = CreateCatalog(); // добавит наушники/колонки/смартфоны
+            GameObject boxPrefab = CreateBoxPrefab();
+
+            GetOrAdd<UnlockManager>(systems);
+            DayReportUI report = GetOrAdd<DayReportUI>(systems);
+            DayManager day = GetOrAdd<DayManager>(systems);
+            Save.SaveSystem save = GetOrAdd<Save.SaveSystem>(systems);
+
+            SetReference(day, "reportUI", report);
+            SetReference(save, "catalog", catalog);
+            SetReference(save, "boxPrefab", boxPrefab.GetComponent<ProductBox>());
+
+            // Каталог в окне заказа и у покупателей — тот же, обновлённый.
+            OrderUI order = Object.FindAnyObjectByType<OrderUI>();
+            if (order != null) SetReference(order, "catalog", catalog);
+            CustomerSpawner spawner = Object.FindAnyObjectByType<CustomerSpawner>();
+            if (spawner != null) SetReference(spawner, "catalog", catalog);
+
+            Selection.activeGameObject = systems;
+            MarkSceneDirty();
+            Debug.Log("[На связи] Итерация 6: рабочий день, отчёт, сохранение, открытие категорий. Сохраните сцену (Ctrl+S).");
+        }
+
+        [MenuItem("На связи/Удалить сохранение игры", priority = 30)]
+        private static void DeleteSaveFile()
+        {
+            if (!Save.SaveSystem.HasSave)
+            {
+                Debug.Log("[На связи] Сохранения нет.");
+                return;
+            }
+
+            if (EditorUtility.DisplayDialog("Удалить сохранение?",
+                    $"Файл будет удалён:\n{Save.SaveSystem.SavePath}", "Удалить", "Отмена"))
+            {
+                Save.SaveSystem.DeleteSave();
+                Debug.Log("[На связи] Сохранение удалено. Следующий запуск начнётся с первого дня.");
+            }
+        }
+
         private const string TariffsFolder = "Assets/_Project/Data/Tariffs";
 
         /// <summary>Вымышленная линейка тарифов и типовые запросы клиентов.</summary>
@@ -363,6 +413,12 @@ namespace NaSvyazi.EditorTools
                     new Vector3(0.06f, 0.09f, 0.01f), new Color(0.85f, 0.2f, 0.55f)),
                 CreateProduct("earbuds", "Беспроводные наушники", ProductCategory.Audio, 1200, 2990, 8,
                     new Vector3(0.1f, 0.12f, 0.05f), new Color(0.12f, 0.12f, 0.14f)),
+                CreateProduct("speaker", "Портативная колонка", ProductCategory.Audio, 1500, 3490, 6,
+                    new Vector3(0.12f, 0.16f, 0.07f), new Color(0.2f, 0.55f, 0.45f)),
+                CreateProduct("phone_basic", "Смартфон начального уровня", ProductCategory.Phones, 6500, 9990, 4,
+                    new Vector3(0.09f, 0.17f, 0.04f), new Color(0.3f, 0.3f, 0.34f)),
+                CreateProduct("phone_mid", "Смартфон среднего класса", ProductCategory.Phones, 14000, 19990, 3,
+                    new Vector3(0.09f, 0.17f, 0.04f), new Color(0.55f, 0.2f, 0.6f)),
             };
 
             AssetDatabase.SaveAssets();

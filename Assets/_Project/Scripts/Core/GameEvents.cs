@@ -25,10 +25,18 @@ namespace NaSvyazi.Core
         /// <summary>Изменилась репутация салона (0–100).</summary>
         public static event Action<int> ReputationChanged;
 
+        /// <summary>Игровое время: (день, минуты от полуночи, фаза дня).</summary>
+        public static event Action<int, int, DayPhase> DayTimeChanged;
+
+        /// <summary>Открыта новая категория товаров.</summary>
+        public static event Action<ProductCategory> CategoryUnlocked;
+
         public static void RaiseStoreOpenChanged(bool isOpen) => StoreOpenChanged?.Invoke(isOpen);
         public static void RaiseMoneyChanged(int balance, int delta) => MoneyChanged?.Invoke(balance, delta);
         public static void Notify(string message) => Notification?.Invoke(message);
         public static void RaisePriceChanged(ProductData product, int price) => PriceChanged?.Invoke(product, price);
         public static void RaiseReputationChanged(int value) => ReputationChanged?.Invoke(value);
+        public static void RaiseDayTimeChanged(int day, int minutes, DayPhase phase) => DayTimeChanged?.Invoke(day, minutes, phase);
+        public static void RaiseCategoryUnlocked(ProductCategory category) => CategoryUnlocked?.Invoke(category);
     }
 }

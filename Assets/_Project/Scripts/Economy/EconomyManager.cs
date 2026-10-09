@@ -62,6 +62,26 @@ namespace NaSvyazi.Economy
             GameEvents.RaiseMoneyChanged(Balance, amount);
         }
 
+        /// <summary>
+        /// Обязательный платёж (аренда): списывается всегда, баланс может уйти в минус.
+        /// </summary>
+        public void Charge(int amount, string reason)
+        {
+            if (amount <= 0) return;
+
+            Balance -= amount;
+            DayExpenses += amount;
+            Debug.Log($"[Экономика] −{amount} руб. ({reason}). Баланс: {Balance}");
+            GameEvents.RaiseMoneyChanged(Balance, -amount);
+        }
+
+        /// <summary>Установить баланс (при загрузке сохранения).</summary>
+        public void SetBalance(int balance)
+        {
+            Balance = balance;
+            GameEvents.RaiseMoneyChanged(Balance, 0);
+        }
+
         /// <summary>Обнулить дневные счётчики (в начале нового дня).</summary>
         public void ResetDayStats()
         {

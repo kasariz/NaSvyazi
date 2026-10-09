@@ -49,6 +49,13 @@ namespace NaSvyazi.Economy
             GameEvents.RaiseReputationChanged(Value);
         }
 
+        /// <summary>Установить значение (при загрузке сохранения).</summary>
+        public void SetValue(int value)
+        {
+            Value = Mathf.Clamp(value, 0, 100);
+            GameEvents.RaiseReputationChanged(Value);
+        }
+
         /// <summary>Изменить репутацию, если менеджер есть на сцене.</summary>
         public static void Add(int delta, string reason)
         {

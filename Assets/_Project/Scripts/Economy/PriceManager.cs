@@ -47,6 +47,9 @@ namespace NaSvyazi.Economy
             GameEvents.RaisePriceChanged(product, price);
         }
 
+        /// <summary>Все цены, изменённые игроком (для сохранения).</summary>
+        public IEnumerable<KeyValuePair<ProductData, int>> CustomPrices => prices;
+
         /// <summary>Цена товара, даже если менеджера цен нет на сцене.</summary>
         public static int PriceOf(ProductData product) =>
             Instance != null ? Instance.GetPrice(product) : (product != null ? product.marketPrice : 0);

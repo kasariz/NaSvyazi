@@ -23,6 +23,16 @@ namespace NaSvyazi.UI
         private readonly Dictionary<ProductData, TextMeshProUGUI> quantityTexts =
             new Dictionary<ProductData, TextMeshProUGUI>();
 
+        /// <summary>Элементы строки, которые меняются при открытии категории.</summary>
+        private class RowLock
+        {
+            public GameObject controls;
+            public Button unlockButton;
+            public TextMeshProUGUI unlockLabel;
+        }
+
+        private readonly Dictionary<ProductData, RowLock> rowLocks = new Dictionary<ProductData, RowLock>();
+
         private GameObject root;
         private TextMeshProUGUI balanceText;
         private TextMeshProUGUI totalText;
@@ -34,8 +44,29 @@ namespace NaSvyazi.UI
             SetVisible(false);
         }
 
-        private void OnEnable() => GameEvents.MoneyChanged += OnMoneyChanged;
-        private void OnDisable() => GameEvents.MoneyChanged -= OnMoneyChanged;
+        private void OnEnable()
+        {
+            GameEvents.MoneyChanged += OnMoneyChanged;
+            GameEvents.CategoryUnlocked += OnCategoryUnlocked;
+            GameEvents.ReputationChanged += OnReputationChanged;
+        }
+
+        private void OnDisable()
+        {
+            GameEvents.MoneyChanged -= OnMoneyChanged;
+            GameEvents.CategoryUnlocked -= OnCategoryUnlocked;
+            GameEvents.ReputationChanged -= OnReputationChanged;
+        }
+
+        private void OnCategoryUnlocked(ProductCategory category)
+        {
+            if (IsOpen) Refresh();
+        }
+
+        private void OnReputationChanged(int value)
+        {
+            if (IsOpen) Refresh();
+        }
 
         protected override void SetVisible(bool visible) => root.SetActive(visible);
         protected override void OnOpened() => Refresh();
@@ -119,6 +150,46 @@ namespace NaSvyazi.UI
             totalText.text = $"Итого: {EconomyManager.Format(total)}   ·   коробок: {TotalBoxes}";
             totalText.color = total > balance ? UIFactory.NegativeColor : UIFactory.TextColor;
             orderButton.interactable = total > 0 && total <= balance;
+
+            RefreshLocks();
+        }
+
+        /// <summary>Закрытые категории: вместо выбора количества — кнопка открытия.</summary>
+        private void RefreshLocks()
+        {
+            UnlockManager unlocks = UnlockManager.Instance;
+            int reputation = ReputationManager.Instance != null ? ReputationManager.Instance.Value : 100;
+
+            foreach (KeyValuePair<ProductData, RowLock> pair in rowLocks)
+            {
+                bool open = UnlockManager.IsUnlocked(pair.Key.category);
+                pair.Value.controls.SetActive(open);
+                pair.Value.unlockButton.gameObject.SetActive(!open);
+                if (open || unlocks == null) continue;
+
+                CategoryUnlock rule = unlocks.GetUnlock(pair.Key.category);
+                if (rule == null)
+                {
+                    pair.Value.unlockLabel.text = "Недоступно";
+                    pair.Value.unlockButton.interactable = false;
+                }
+                else if (reputation < rule.minReputation)
+                {
+                    pair.Value.unlockLabel.text = $"Репутация {rule.minReputation}+";
+                    pair.Value.unlockButton.interactable = false;
+                }
+                else
+                {
+                    pair.Value.unlockLabel.text = $"Открыть: {EconomyManager.Format(rule.cost)}";
+                    pair.Value.unlockButton.interactable = true;
+                }
+            }
+        }
+
+        private void Unlock(ProductData product)
+        {
+            if (UnlockManager.Instance != null && UnlockManager.Instance.TryUnlock(product.category))
+                Refresh();
         }
 
         // --- Построение окна ---
@@ -198,16 +269,33 @@ namespace NaSvyazi.UI
                 return;
             }
 
-            UIFactory.SetSize(UIFactory.CreateButton("Minus", row.transform, "−",
+            // Выбор количества коробок (для открытых категорий).
+            RectTransform controls = UIFactory.CreateRect("Controls", row.transform);
+            UIFactory.AddHorizontalLayout(controls.gameObject, 8f, 0);
+            UIFactory.SetSize(controls, width: 196f);
+
+            UIFactory.SetSize(UIFactory.CreateButton("Minus", controls, "−",
                 () => ChangeQuantity(product, -1), UIFactory.ButtonColor, 30f), width: 56f);
 
-            TextMeshProUGUI qty = UIFactory.CreateText("Qty", row.transform, "0", 26f, UIFactory.TextColor,
+            TextMeshProUGUI qty = UIFactory.CreateText("Qty", controls, "0", 26f, UIFactory.TextColor,
                 TextAlignmentOptions.Center);
             UIFactory.SetSize(qty, width: 60f);
             quantityTexts[product] = qty;
 
-            UIFactory.SetSize(UIFactory.CreateButton("Plus", row.transform, "+",
+            UIFactory.SetSize(UIFactory.CreateButton("Plus", controls, "+",
                 () => ChangeQuantity(product, 1), UIFactory.ButtonColor, 30f), width: 56f);
+
+            // Кнопка открытия категории (для закрытых категорий).
+            Button unlock = UIFactory.CreateButton("Unlock", row.transform, "", () => Unlock(product),
+                UIFactory.AccentColor, 20f);
+            UIFactory.SetSize(unlock, width: 196f);
+
+            rowLocks[product] = new RowLock
+            {
+                controls = controls.gameObject,
+                unlockButton = unlock,
+                unlockLabel = unlock.GetComponentInChildren<TextMeshProUGUI>()
+            };
         }
 
         private static void AddCell(Transform row, string text, float size, Color color, float width)

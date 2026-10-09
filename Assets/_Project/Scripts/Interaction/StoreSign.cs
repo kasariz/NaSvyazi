@@ -1,13 +1,15 @@
 using NaSvyazi.Core;
 using NaSvyazi.Player;
+using NaSvyazi.Store;
 using TMPro;
 using UnityEngine;
 
 namespace NaSvyazi.Interaction
 {
     /// <summary>
-    /// Табличка «Открыто / Закрыто» у входа. Открывая салон, игрок начинает
-    /// рабочий день: позже на это событие подпишется генератор покупателей.
+    /// Табличка «Открыто / Закрыто» у входа. Утром игрок открывает ею салон
+    /// и начинает рабочий день; днём можно закрыть салон досрочно.
+    /// Внешний вид таблички следует за событием открытия/закрытия салона.
     /// </summary>
     public class StoreSign : MonoBehaviour, IInteractable
     {
@@ -20,18 +22,48 @@ namespace NaSvyazi.Interaction
 
         public bool IsOpen { get; private set; }
 
+        private void OnEnable() => GameEvents.StoreOpenChanged += OnStoreOpenChanged;
+        private void OnDisable() => GameEvents.StoreOpenChanged -= OnStoreOpenChanged;
+
         private void Start() => ApplyVisual();
 
-        public string GetPrompt(PlayerInteractor interactor) => IsOpen ? "Закрыть салон" : "Открыть салон";
+        private void OnStoreOpenChanged(bool open)
+        {
+            IsOpen = open;
+            ApplyVisual();
+        }
 
-        public bool CanInteract(PlayerInteractor interactor) => true;
+        public string GetPrompt(PlayerInteractor interactor)
+        {
+            DayManager day = DayManager.Instance;
+            if (day == null) return IsOpen ? "Закрыть салон" : "Открыть салон";
+
+            switch (day.Phase)
+            {
+                case DayPhase.Preparing: return $"Открыть салон (начать день {day.Day})";
+                case DayPhase.Open: return "Закрыть салон досрочно";
+                default: return null;
+            }
+        }
+
+        public bool CanInteract(PlayerInteractor interactor)
+        {
+            DayManager day = DayManager.Instance;
+            return day == null || day.Phase == DayPhase.Preparing || day.Phase == DayPhase.Open;
+        }
 
         public void Interact(PlayerInteractor interactor)
         {
-            IsOpen = !IsOpen;
-            ApplyVisual();
-            GameEvents.RaiseStoreOpenChanged(IsOpen);
-            Debug.Log(IsOpen ? "Салон открыт" : "Салон закрыт");
+            DayManager day = DayManager.Instance;
+            if (day == null)
+            {
+                // Без менеджера дня — простое переключение (как в первых итерациях).
+                GameEvents.RaiseStoreOpenChanged(!IsOpen);
+                return;
+            }
+
+            if (day.Phase == DayPhase.Preparing) day.OpenStore();
+            else if (day.Phase == DayPhase.Open) day.CloseEarly();
         }
 
         private void ApplyVisual()

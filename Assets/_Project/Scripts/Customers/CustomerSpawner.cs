@@ -84,7 +84,7 @@ namespace NaSvyazi.Customers
             List<ProductData> pool = new List<ProductData>();
             if (catalog != null)
                 foreach (ProductData p in catalog.products)
-                    if (p != null) pool.Add(p);
+                    if (p != null && UnlockManager.IsUnlocked(p.category)) pool.Add(p);
 
             List<ProductData> result = new List<ProductData>();
             int count = Random.Range(wantedItems.x, wantedItems.y + 1);

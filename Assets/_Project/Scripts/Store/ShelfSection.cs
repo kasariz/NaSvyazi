@@ -132,6 +132,20 @@ namespace NaSvyazi.Store
             return true;
         }
 
+        /// <summary>Убрать весь товар с полки.</summary>
+        public void Clear()
+        {
+            while (TryTakeOne(out _)) { }
+        }
+
+        /// <summary>Заполнить полку заданным количеством товара (при загрузке сохранения).</summary>
+        public void Restore(ProductData item, int count)
+        {
+            Clear();
+            for (int i = 0; i < count; i++)
+                if (!TryPlace(item)) break;
+        }
+
         // --- IInteractable: E — изменить цену ---
 
         public string GetPrompt(PlayerInteractor interactor) =>

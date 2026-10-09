@@ -1,5 +1,6 @@
 using NaSvyazi.Core;
 using NaSvyazi.Economy;
+using NaSvyazi.Store;
 using TMPro;
 using UnityEngine;
 using UnityEngine.UI;
@@ -17,6 +18,7 @@ namespace NaSvyazi.UI
 
         private TextMeshProUGUI moneyText;
         private TextMeshProUGUI reputationText;
+        private TextMeshProUGUI clockText;
         private Image notificationPanel;
         private TextMeshProUGUI notificationText;
         private float notificationTimer;
@@ -29,6 +31,7 @@ namespace NaSvyazi.UI
             GameEvents.MoneyChanged += OnMoneyChanged;
             GameEvents.Notification += OnNotification;
             GameEvents.ReputationChanged += OnReputationChanged;
+            GameEvents.DayTimeChanged += OnDayTimeChanged;
         }
 
         private void OnDisable()
@@ -36,6 +39,7 @@ namespace NaSvyazi.UI
             GameEvents.MoneyChanged -= OnMoneyChanged;
             GameEvents.Notification -= OnNotification;
             GameEvents.ReputationChanged -= OnReputationChanged;
+            GameEvents.DayTimeChanged -= OnDayTimeChanged;
         }
 
         private void Update()
@@ -69,6 +73,19 @@ namespace NaSvyazi.UI
                 : value >= 35 ? UIFactory.TextColor : UIFactory.NegativeColor;
         }
 
+        private void OnDayTimeChanged(int day, int minutes, DayPhase phase)
+        {
+            string phaseText;
+            switch (phase)
+            {
+                case DayPhase.Preparing: phaseText = "подготовка"; break;
+                case DayPhase.Open: phaseText = "открыто"; break;
+                case DayPhase.Closing: phaseText = "закрываемся"; break;
+                default: phaseText = "итоги дня"; break;
+            }
+            clockText.text = $"День {day}  ·  {DayManager.FormatTime(minutes)}  ·  {phaseText}";
+        }
+
         private void OnNotification(string message)
         {
             notificationText.text = message;
@@ -96,6 +113,13 @@ namespace NaSvyazi.UI
             reputationText = UIFactory.CreateText("ReputationText", reputationPanel.transform, "", 22f,
                 UIFactory.TextColor, TextAlignmentOptions.MidlineRight);
             UIFactory.Stretch(reputationText.rectTransform, 14f);
+
+            Image clockPanel = UIFactory.CreatePanel("Clock", canvas.transform,
+                new Color(0.08f, 0.09f, 0.11f, 0.8f));
+            UIFactory.Place(clockPanel.rectTransform, new Vector2(0f, 1f), new Vector2(0f, 1f),
+                new Vector2(24f, -24f), new Vector2(460f, 60f));
+            clockText = UIFactory.CreateText("ClockText", clockPanel.transform, "", 26f, UIFactory.TextColor);
+            UIFactory.Stretch(clockText.rectTransform, 14f);
 
             notificationPanel = UIFactory.CreatePanel("Notification", canvas.transform,
                 new Color(0.08f, 0.09f, 0.11f, 0.9f));
