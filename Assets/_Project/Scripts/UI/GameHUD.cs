@@ -88,7 +88,7 @@ namespace NaSvyazi.UI
             {
                 shownPoints = points;
                 skillPanel.gameObject.SetActive(points > 0);
-                skillText.text = $"Очки навыков: {points}  ·  клавиша K";
+                skillText.text = $"Навыки [K]: свободно очков — {points}";
             }
         }
 
@@ -199,8 +199,11 @@ namespace NaSvyazi.UI
             skillPanel = UIFactory.CreatePanel("Skills", canvas.transform, new Color(0.08f, 0.09f, 0.11f, 0.8f));
             UIFactory.Place(skillPanel.rectTransform, new Vector2(1f, 1f), new Vector2(1f, 1f),
                 new Vector2(-24f, -200f), new Vector2(300f, 42f));
-            skillText = UIFactory.CreateText("SkillsText", skillPanel.transform, "", 20f,
+            skillText = UIFactory.CreateText("SkillsText", skillPanel.transform, "", 18f,
                 UIFactory.AccentColor, TextAlignmentOptions.MidlineRight);
+            skillText.enableAutoSizing = true;
+            skillText.fontSizeMin = 12f;
+            skillText.fontSizeMax = 18f;
             UIFactory.Stretch(skillText.rectTransform, 12f);
             skillPanel.gameObject.SetActive(false);
 

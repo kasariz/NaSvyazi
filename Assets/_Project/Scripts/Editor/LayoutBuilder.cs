@@ -450,7 +450,7 @@ namespace NaSvyazi.EditorTools
             Poster(d, "Poster_Number", new Vector3(-8f + WallHalf, 2.45f, -4.2f), facingEast, new Vector2(3.4f, 0.85f),
                 black, "<b>ПЕРЕНЕСЁМ ВАШ НОМЕР</b>\nза один день", Color.white);
             Poster(d, "Poster_Tariffs", new Vector3(-8f + WallHalf, 2.45f, -1.6f), facingEast, new Vector2(1.6f, 0.85f),
-                magenta, "<b>ТАРИФЫ</b>\nот 300 ₽/мес", Color.white);
+                magenta, "<b>ТАРИФЫ</b>\nот 300 руб./мес", Color.white);
 
             // Табличка над дверью склада.
             Poster(d, "Sign_Storage", new Vector3(-8f + WallHalf, 2.55f, -6.6f), facingEast, new Vector2(1.2f, 0.3f),
@@ -476,13 +476,13 @@ namespace NaSvyazi.EditorTools
             // Постеры на восточных стенах каждого этапа (исчезают вместе со стеной).
             Poster(Group(s, "Decor_East_0", LayoutZone.Salon, 0, 0), "Poster_Internet",
                 new Vector3(0f - WallHalf, 1.9f, -5.5f), facingWest, new Vector2(2.4f, 1.6f), magenta,
-                "<b>БЕЗЛИМИТНЫЙ\nИНТЕРНЕТ</b>\nв выходные и праздники\n<b>от 350 ₽</b>", Color.white);
+                "<b>БЕЗЛИМИТНЫЙ\nИНТЕРНЕТ</b>\nв выходные и праздники\n<b>от 350 руб.</b>", Color.white);
             Poster(Group(s, "Decor_East_1", LayoutZone.Salon, 1, 1), "Poster_Internet",
                 new Vector3(4f - WallHalf, 1.9f, -5.5f), facingWest, new Vector2(2.4f, 1.6f), magenta,
-                "<b>БЕЗЛИМИТНЫЙ\nИНТЕРНЕТ</b>\nв выходные и праздники\n<b>от 350 ₽</b>", Color.white);
+                "<b>БЕЗЛИМИТНЫЙ\nИНТЕРНЕТ</b>\nв выходные и праздники\n<b>от 350 руб.</b>", Color.white);
             Transform e2 = Group(s, "Decor_East_2", LayoutZone.Salon, 2);
             Poster(e2, "Poster_Internet", new Vector3(8f - WallHalf, 1.9f, -6.5f), facingWest, new Vector2(2.4f, 1.6f),
-                magenta, "<b>БЕЗЛИМИТНЫЙ\nИНТЕРНЕТ</b>\nв выходные и праздники\n<b>от 350 ₽</b>", Color.white);
+                magenta, "<b>БЕЗЛИМИТНЫЙ\nИНТЕРНЕТ</b>\nв выходные и праздники\n<b>от 350 руб.</b>", Color.white);
             Poster(e2, "Poster_Home", new Vector3(8f - WallHalf, 1.9f, -3f), facingWest, new Vector2(2f, 1.6f),
                 black, "<b>ДОМАШНИЙ\nИНТЕРНЕТ</b>\nи ТВ\nподключим за день", Color.white);
 
@@ -535,53 +535,60 @@ namespace NaSvyazi.EditorTools
         // Строительные блоки
         // ----------------------------------------------------------------
 
-        /// <summary>Пол, потолок, светильники и точечный свет для прямоугольного участка.</summary>
+        /// <summary>
+        /// Пол, потолок и светильники участка. Свет дают прожекторы (Spot), направленные вниз
+        /// из самих светильников: пол и стены освещены, а потолок остаётся ровным.
+        /// Потолок отбрасывает тень — солнце в зал попадает только через витрину.
+        /// </summary>
         private static void RoomShell(Transform parent, Rect a, Material floor, float floorTile, Material ceiling,
             bool salon)
         {
             Box(parent, "Floor", new Vector3(a.xMin, -0.2f, a.yMin), new Vector3(a.xMax, 0f, a.yMax), floor, true, floorTile);
             Box(parent, "Ceiling", new Vector3(a.xMin, LayoutPlan.WallHeight, a.yMin),
-                new Vector3(a.xMax, LayoutPlan.WallHeight + 0.2f, a.yMax), ceiling, true, salon ? 2.4f : 0f, false);
+                new Vector3(a.xMax, LayoutPlan.WallHeight + 0.2f, a.yMax), ceiling, true, salon ? 2.4f : 0f);
 
             Material lamp = LMat("M_L_Lamp", new Color(1f, 0.98f, 0.93f), 0.5f, 2.2f);
             if (salon)
             {
-                // Круглые встроенные светильники сеткой ~2 м.
-                for (float x = a.xMin + 1f; x < a.xMax; x += 2f)
-                    for (float z = a.yMin + 1f; z < a.yMax; z += 2f)
+                // Круглые встроенные светильники сеткой 2 м; каждый второй в каждом ряду — с прожектором.
+                int ix = 0;
+                for (float x = a.xMin + 1f; x < a.xMax; x += 2f, ix++)
+                {
+                    int iz = 0;
+                    for (float z = a.yMin + 1f; z < a.yMax; z += 2f, iz++)
                     {
                         GameObject disc = PrimitivePart(PrimitiveType.Cylinder, parent, "Downlight",
                             new Vector3(x, LayoutPlan.WallHeight - 0.01f, z), new Vector3(0.22f, 0.01f, 0.22f), lamp, false);
                         disc.GetComponent<Renderer>().shadowCastingMode = ShadowCastingMode.Off;
+                        if (ix % 2 == 0 && iz % 2 == 0) SpotLight(parent, new Vector3(x, LayoutPlan.WallHeight - 0.05f, z), true);
                     }
+                }
             }
             else
             {
-                // Линейные лампы на складе.
+                // Линейные лампы на складе, под каждой — прожектор.
                 for (float z = a.yMin + 1.5f; z < a.yMax; z += 3f)
+                {
                     Box(parent, "TubeLamp", new Vector3(a.center.x - 0.8f, LayoutPlan.WallHeight - 0.05f, z - 0.06f),
                         new Vector3(a.center.x + 0.8f, LayoutPlan.WallHeight, z + 0.06f), lamp, false, 0f, false);
+                    SpotLight(parent, new Vector3(a.center.x, LayoutPlan.WallHeight - 0.08f, z), false);
+                }
             }
+        }
 
-            // Точечный свет: по одному на каждые ~40 м².
-            int lights = Mathf.Max(1, Mathf.RoundToInt(a.width * a.height / 40f));
-            bool alongX = a.width >= a.height;
-            for (int i = 0; i < lights; i++)
-            {
-                float t = (i + 0.5f) / lights;
-                Vector3 p = alongX
-                    ? new Vector3(Mathf.Lerp(a.xMin, a.xMax, t), 2.6f, a.center.y)
-                    : new Vector3(a.center.x, 2.6f, Mathf.Lerp(a.yMin, a.yMax, t));
-                GameObject go = new GameObject("PointLight");
-                go.transform.SetParent(parent, false);
-                go.transform.position = p;
-                Light light = go.AddComponent<Light>();
-                light.type = LightType.Point;
-                light.range = salon ? 8f : 7f;
-                light.intensity = salon ? 1.4f : 1.1f;
-                light.color = salon ? new Color(1f, 0.97f, 0.93f) : new Color(0.95f, 0.97f, 1f);
-                light.shadows = LightShadows.None;
-            }
+        private static void SpotLight(Transform parent, Vector3 position, bool salon)
+        {
+            GameObject go = new GameObject("SpotLight");
+            go.transform.SetParent(parent, false);
+            go.transform.SetPositionAndRotation(position, Quaternion.Euler(90f, 0f, 0f)); // светит вниз
+            Light light = go.AddComponent<Light>();
+            light.type = LightType.Spot;
+            light.spotAngle = 130f;
+            light.innerSpotAngle = 70f;
+            light.range = 6.5f;
+            light.intensity = salon ? 3f : 2.4f;
+            light.color = salon ? new Color(1f, 0.97f, 0.92f) : new Color(0.95f, 0.97f, 1f);
+            light.shadows = LightShadows.None;
         }
 
         /// <summary>Стена вдоль X (на линии z) от x0 до x1, с перекрытием углов.</summary>

@@ -20,6 +20,11 @@ namespace NaSvyazi.UI
         public static readonly Color MutedTextColor = new Color(0.65f, 0.67f, 0.72f, 1f);
         public static readonly Color PositiveColor = new Color(0.35f, 0.85f, 0.45f, 1f);
         public static readonly Color NegativeColor = new Color(0.95f, 0.35f, 0.35f, 1f);
+        public static readonly Color DisabledColor = new Color(0.19f, 0.2f, 0.23f, 1f);
+
+        // Единые размеры элементов.
+        public const float ButtonHeight = 44f;
+        public const float RowHeight = 56f;
 
         /// <summary>Холст поверх экрана с масштабированием под 1920×1080.</summary>
         public static Canvas CreateCanvas(string name, int sortingOrder, Transform parent)
@@ -90,9 +95,12 @@ namespace NaSvyazi.UI
         public static Button CreateButton(string name, Transform parent, string label, Action onClick,
             Color color, float fontSize = 24f)
         {
-            Image image = CreatePanel(name, parent, color);
+            // Картинка белая, цвет задаёт кнопка: так у всех кнопок одинаково выглядят
+            // наведение, нажатие и недоступное состояние.
+            Image image = CreatePanel(name, parent, Color.white);
             Button button = image.gameObject.AddComponent<Button>();
             button.targetGraphic = image;
+            SetButtonColor(button, color);
 
             TextMeshProUGUI text = CreateText("Label", image.transform, label, fontSize, TextColor,
                 TextAlignmentOptions.Center);
@@ -104,6 +112,30 @@ namespace NaSvyazi.UI
                 onClick?.Invoke();
             });
             return button;
+        }
+
+        /// <summary>Цвет кнопки во всех состояниях: обычном, при наведении, нажатии и недоступном.</summary>
+        public static void SetButtonColor(Button button, Color color)
+        {
+            ColorBlock colors = button.colors;
+            colors.normalColor = color;
+            colors.highlightedColor = Color.Lerp(color, Color.white, 0.14f);
+            colors.pressedColor = Color.Lerp(color, Color.black, 0.15f);
+            colors.selectedColor = color;
+            colors.disabledColor = DisabledColor;
+            colors.colorMultiplier = 1f;
+            colors.fadeDuration = 0.08f;
+            button.colors = colors;
+        }
+
+        /// <summary>Подпись кнопки (тускнеет, когда кнопка недоступна — вызывайте после смены interactable).</summary>
+        public static void SetButtonState(Button button, string label, bool interactable)
+        {
+            button.interactable = interactable;
+            TextMeshProUGUI text = button.GetComponentInChildren<TextMeshProUGUI>();
+            if (text == null) return;
+            text.text = label;
+            text.color = interactable ? TextColor : MutedTextColor;
         }
 
         /// <summary>Горизонтальный ползунок с подписью значения.</summary>
@@ -153,6 +185,14 @@ namespace NaSvyazi.UI
             le.preferredWidth = width;
             le.preferredHeight = height;
 
+            // Заданный размер — жёсткий: раскладка не сжимает элемент, когда соседям тесно.
+            le.minWidth = width;
+            le.minHeight = height;
+
+            // Гибкий элемент без размера не «просит» место под свой текст — он занимает остаток.
+            if (width < 0f && flexibleWidth > 0f) le.preferredWidth = 0f;
+            if (height < 0f && flexibleHeight > 0f) le.preferredHeight = 0f;
+
             // Если задан точный размер, элемент не должен растягиваться: иначе вложенная раскладка
             // (например, ряд кнопок) сообщает «гибкость» и забирает свободное место у соседей.
             le.flexibleWidth = flexibleWidth >= 0f ? flexibleWidth : (width >= 0f ? 0f : -1f);
@@ -165,6 +205,11 @@ namespace NaSvyazi.UI
         /// Возвращает контейнер, в который добавляются строки. Сам список растягивается по высоте.
         /// </summary>
         public static RectTransform CreateScrollList(string name, Transform parent, float spacing)
+            => CreateScrollList(name, parent, spacing, 0, Vector2.zero);
+
+        /// <summary>Прокручиваемый список; columns &gt; 0 — сетка карточек размером cellSize.</summary>
+        public static RectTransform CreateScrollList(string name, Transform parent, float spacing, int columns,
+            Vector2 cellSize)
         {
             RectTransform viewport = CreateRect(name, parent);
             viewport.gameObject.AddComponent<RectMask2D>();
@@ -178,7 +223,15 @@ namespace NaSvyazi.UI
             content.pivot = new Vector2(0.5f, 1f);
             content.anchoredPosition = Vector2.zero;
             content.sizeDelta = Vector2.zero;
-            AddVerticalLayout(content.gameObject, spacing, 0);
+            if (columns > 0)
+            {
+                GridLayoutGroup grid = content.gameObject.AddComponent<GridLayoutGroup>();
+                grid.cellSize = cellSize;
+                grid.spacing = new Vector2(spacing, spacing);
+                grid.constraint = GridLayoutGroup.Constraint.FixedColumnCount;
+                grid.constraintCount = columns;
+            }
+            else AddVerticalLayout(content.gameObject, spacing, 0);
             ContentSizeFitter fitter = content.gameObject.AddComponent<ContentSizeFitter>();
             fitter.verticalFit = ContentSizeFitter.FitMode.PreferredSize;
 
@@ -202,6 +255,29 @@ namespace NaSvyazi.UI
             layout.childForceExpandWidth = true;
             layout.childForceExpandHeight = false;
             return layout;
+        }
+
+        /// <summary>
+        /// Строка с элементами, выровненными по центру по вертикали: высоту каждого элемента задаёт он сам
+        /// (кнопки — ButtonHeight), строку не растягивают.
+        /// </summary>
+        public static RectTransform CreateRow(string name, Transform parent, float height, float spacing,
+            int paddingX, Color? background = null)
+        {
+            RectTransform row;
+            if (background.HasValue) row = CreatePanel(name, parent, background.Value).rectTransform;
+            else row = CreateRect(name, parent);
+
+            HorizontalLayoutGroup layout = row.gameObject.AddComponent<HorizontalLayoutGroup>();
+            layout.spacing = spacing;
+            layout.padding = new RectOffset(paddingX, paddingX, 0, 0);
+            layout.childAlignment = TextAnchor.MiddleLeft;
+            layout.childControlWidth = true;
+            layout.childControlHeight = true;
+            layout.childForceExpandWidth = false;
+            layout.childForceExpandHeight = false;
+            SetSize(row, height: height);
+            return row;
         }
 
         public static HorizontalLayoutGroup AddHorizontalLayout(GameObject go, float spacing, int padding)

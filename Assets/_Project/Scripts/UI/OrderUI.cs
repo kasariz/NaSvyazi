@@ -11,8 +11,9 @@ using UnityEngine.UI;
 namespace NaSvyazi.UI
 {
     /// <summary>
-    /// Окно заказа товара у поставщика: список товаров каталога, количество коробок,
-    /// итоговая сумма и оформление заказа. Окно собирается из кода при запуске.
+    /// Терминал салона: заказ товара у поставщика, покупка мебели, расширение помещений и персонал.
+    /// Окно собирается из кода. Все кнопки одного размера (ширина ActionWidth, высота ButtonHeight),
+    /// строки и карточки — с одинаковыми отступами.
     /// </summary>
     public class OrderUI : ModalWindow
     {
@@ -21,26 +22,55 @@ namespace NaSvyazi.UI
         [SerializeField] private int maxBoxesPerProduct = 9;
         [SerializeField] private FurnitureCatalog furnitureCatalog;
 
+        // --- Размеры ---
+        private const float WindowWidth = 1360f;
+        private const float WindowHeight = 900f;
+        private const int Padding = 28;
+        private const float ActionWidth = 230f;     // ширина всех кнопок действий
+        private const float QtyColumn = 212f;       // колонка «количество» в таблице товаров
+        private const float CardHeight = 184f;
+
+        // --- Корзина ---
         private readonly Dictionary<ProductData, int> cart = new Dictionary<ProductData, int>();
         private readonly Dictionary<ProductData, TextMeshProUGUI> quantityTexts =
             new Dictionary<ProductData, TextMeshProUGUI>();
 
-        /// <summary>Элементы строки, которые меняются при открытии категории.</summary>
-        private class RowLock
+        /// <summary>Строка товара: цены и переключение «количество / открыть категорию».</summary>
+        private class ProductRow
         {
             public GameObject controls;
             public Button unlockButton;
-            public TextMeshProUGUI unlockLabel;
+            public TextMeshProUGUI unitText;
+            public TextMeshProUGUI boxText;
         }
 
-        private readonly Dictionary<ProductData, RowLock> rowLocks = new Dictionary<ProductData, RowLock>();
-        private readonly Dictionary<ProductData, TextMeshProUGUI[]> priceCells =
-            new Dictionary<ProductData, TextMeshProUGUI[]>();
+        private readonly Dictionary<ProductData, ProductRow> productRows = new Dictionary<ProductData, ProductRow>();
+
+        /// <summary>Карточка мебели или строка развития: кнопка и подписи, которые обновляются.</summary>
+        private class ActionItem
+        {
+            public Button button;
+            public TextMeshProUGUI note;    // цена / требование
+            public Image stripe;            // цветная метка состояния (для строк развития)
+        }
+
+        private readonly Dictionary<FurnitureData, ActionItem> furnitureCards = new Dictionary<FurnitureData, ActionItem>();
+        private readonly List<KeyValuePair<LayoutZone, int>> stageKeys = new List<KeyValuePair<LayoutZone, int>>();
+        private readonly List<ActionItem> stageRows = new List<ActionItem>();
+        private ActionItem cashierRow;
 
         private GameObject root;
         private TextMeshProUGUI balanceText;
         private TextMeshProUGUI totalText;
         private Button orderButton;
+        private TextMeshProUGUI levelText;
+        private TextMeshProUGUI expensesText;
+        private Image levelBar;
+
+        private enum Tab { Products, Furniture, Development }
+
+        private readonly List<GameObject> tabPanels = new List<GameObject>();
+        private readonly List<Button> tabButtons = new List<Button>();
 
         private void Awake()
         {
@@ -72,15 +102,17 @@ namespace NaSvyazi.UI
             if (IsOpen) Refresh();
         }
 
-        protected override void SetVisible(bool visible) => root.SetActive(visible);
-        protected override void OnOpened() => Refresh();
-
         private void OnMoneyChanged(int balance, int delta)
         {
             if (IsOpen) Refresh();
         }
 
-        // --- Логика корзины ---
+        protected override void SetVisible(bool visible) => root.SetActive(visible);
+        protected override void OnOpened() => Refresh();
+
+        // ----------------------------------------------------------------
+        // Корзина
+        // ----------------------------------------------------------------
 
         private int TotalCost
         {
@@ -105,8 +137,7 @@ namespace NaSvyazi.UI
 
         private void ChangeQuantity(ProductData product, int delta)
         {
-            int current;
-            cart.TryGetValue(product, out current);
+            cart.TryGetValue(product, out int current);
             cart[product] = Mathf.Clamp(current + delta, 0, maxBoxesPerProduct);
             quantityTexts[product].text = cart[product].ToString();
             Refresh();
@@ -114,8 +145,7 @@ namespace NaSvyazi.UI
 
         private void ClearCart()
         {
-            List<ProductData> keys = new List<ProductData>(cart.Keys);
-            foreach (ProductData p in keys)
+            foreach (ProductData p in new List<ProductData>(cart.Keys))
             {
                 cart[p] = 0;
                 quantityTexts[p].text = "0";
@@ -146,140 +176,10 @@ namespace NaSvyazi.UI
             Close();
         }
 
-        private void Refresh()
-        {
-            EconomyManager economy = EconomyManager.Instance;
-            int balance = economy != null ? economy.Balance : 0;
-            int total = TotalCost;
-
-            balanceText.text = $"Баланс: {EconomyManager.Format(balance)}";
-            totalText.text = $"Итого: {EconomyManager.Format(total)}   ·   коробок: {TotalBoxes}";
-            totalText.color = total > balance ? UIFactory.NegativeColor : UIFactory.TextColor;
-            orderButton.interactable = total > 0 && total <= balance;
-
-            RefreshPrices();
-            RefreshLocks();
-            RefreshFurnitureAndDevelopment();
-        }
-
-        /// <summary>Закрытые категории: вместо выбора количества — кнопка открытия.</summary>
-        private void RefreshLocks()
-        {
-            UnlockManager unlocks = UnlockManager.Instance;
-            int level = LevelManager.CurrentLevel;
-
-            foreach (KeyValuePair<ProductData, RowLock> pair in rowLocks)
-            {
-                bool open = UnlockManager.IsUnlocked(pair.Key.category);
-                pair.Value.controls.SetActive(open);
-                pair.Value.unlockButton.gameObject.SetActive(!open);
-                if (open || unlocks == null) continue;
-
-                CategoryUnlock rule = unlocks.GetUnlock(pair.Key.category);
-                if (rule == null)
-                {
-                    pair.Value.unlockLabel.text = "Недоступно";
-                    pair.Value.unlockButton.interactable = false;
-                }
-                else if (level < rule.minLevel)
-                {
-                    pair.Value.unlockLabel.text = $"Уровень салона {rule.minLevel}";
-                    pair.Value.unlockButton.interactable = false;
-                }
-                else
-                {
-                    pair.Value.unlockLabel.text = $"Открыть: {EconomyManager.Format(rule.cost)}";
-                    pair.Value.unlockButton.interactable = true;
-                }
-            }
-        }
-
         private void Unlock(ProductData product)
         {
             if (UnlockManager.Instance != null && UnlockManager.Instance.TryUnlock(product.category))
                 Refresh();
-        }
-
-        // --- Вкладки «Мебель» и «Развитие» ---
-
-        private enum Tab { Products, Furniture, Development }
-
-        private readonly List<GameObject> tabPanels = new List<GameObject>();
-        private readonly List<Button> tabButtons = new List<Button>();
-        private Tab currentTab = Tab.Products;
-
-        private class ActionRow
-        {
-            public Button button;
-            public TextMeshProUGUI label;
-            public TextMeshProUGUI title;
-            public TextMeshProUGUI description;
-        }
-
-        private readonly Dictionary<FurnitureData, ActionRow> furnitureRows = new Dictionary<FurnitureData, ActionRow>();
-        private ActionRow salonRow;
-        private ActionRow storageRow;
-        private ActionRow cashierRow;
-        private TextMeshProUGUI developmentInfo;
-
-        private void ShowTab(Tab tab)
-        {
-            currentTab = tab;
-            for (int i = 0; i < tabPanels.Count; i++)
-            {
-                tabPanels[i].SetActive(i == (int)tab);
-                tabButtons[i].GetComponent<Image>().color = i == (int)tab ? UIFactory.AccentColor : UIFactory.ButtonColor;
-            }
-            Refresh();
-        }
-
-        private void RefreshFurnitureAndDevelopment()
-        {
-            int level = LevelManager.CurrentLevel;
-
-            foreach (KeyValuePair<FurnitureData, ActionRow> pair in furnitureRows)
-            {
-                FurnitureData f = pair.Key;
-                bool levelOk = level >= f.minLevel;
-                pair.Value.label.text = levelOk ? $"Купить: {EconomyManager.Format(f.price)}" : $"Уровень салона {f.minLevel}";
-                pair.Value.button.interactable = levelOk && EconomyManager.Instance != null
-                                                 && EconomyManager.Instance.CanAfford(f.price);
-            }
-
-            RefreshStageRow(salonRow, LayoutZone.Salon, level);
-            RefreshStageRow(storageRow, LayoutZone.Storage, level);
-
-            StaffManager staff = StaffManager.Instance;
-            if (cashierRow != null && staff != null)
-            {
-                if (staff.CashierHired)
-                {
-                    cashierRow.label.text = "Уволить";
-                    cashierRow.button.interactable = true;
-                }
-                else if (level < staff.CashierMinLevel)
-                {
-                    cashierRow.label.text = $"Уровень салона {staff.CashierMinLevel}";
-                    cashierRow.button.interactable = false;
-                }
-                else
-                {
-                    cashierRow.label.text = "Нанять";
-                    cashierRow.button.interactable = true;
-                }
-            }
-
-            if (developmentInfo != null)
-            {
-                LevelManager lm = LevelManager.Instance;
-                string levelText = lm == null ? "" : lm.IsMaxLevel
-                    ? $"Уровень салона: {lm.Level} (максимальный)"
-                    : $"Уровень салона: {lm.Level}   ·   опыт {lm.Xp} из {lm.XpForNextLevel}";
-                int rent = DayManager.Instance != null ? DayManager.Instance.DailyRent : 0;
-                int wages = DayManager.Instance != null ? DayManager.Instance.DailyWages : 0;
-                developmentInfo.text = $"{levelText}\nРасходы в день: аренда {EconomyManager.Format(rent)}" +
-                                       (wages > 0 ? $", зарплата {EconomyManager.Format(wages)}" : "");
-            }
         }
 
         private void BuyFurniture(FurnitureData data)
@@ -299,6 +199,12 @@ namespace NaSvyazi.UI
             GameEvents.Notify("Выберите место: ЛКМ — поставить, R — повернуть, ПКМ — отмена");
         }
 
+        private void BuyExpansion(LayoutZone zone)
+        {
+            if (ExpansionManager.Instance != null) ExpansionManager.Instance.TryUpgrade(zone);
+            Refresh();
+        }
+
         private void ToggleCashier()
         {
             StaffManager staff = StaffManager.Instance;
@@ -308,45 +214,149 @@ namespace NaSvyazi.UI
             Refresh();
         }
 
-        /// <summary>Строка «следующее расширение» для зала или склада.</summary>
-        private static void RefreshStageRow(ActionRow row, LayoutZone zone, int level)
+        // ----------------------------------------------------------------
+        // Обновление
+        // ----------------------------------------------------------------
+
+        private static int Balance => EconomyManager.Instance != null ? EconomyManager.Instance.Balance : 0;
+
+        private void Refresh()
         {
+            int balance = Balance;
+            int total = TotalCost;
+
+            balanceText.text = $"Баланс: <b>{EconomyManager.Format(balance)}</b>";
+            totalText.text = total > 0
+                ? $"Итого: <b>{EconomyManager.Format(total)}</b>   ·   коробок: {TotalBoxes}"
+                : "Выберите товар: «+» добавляет коробку в заказ";
+            totalText.color = total > balance ? UIFactory.NegativeColor : UIFactory.TextColor;
+            UIFactory.SetButtonState(orderButton, total > balance ? "Не хватает денег" : "Оформить заказ",
+                total > 0 && total <= balance);
+
+            RefreshProducts();
+            RefreshFurniture();
+            RefreshDevelopment();
+        }
+
+        private void RefreshProducts()
+        {
+            UnlockManager unlocks = UnlockManager.Instance;
+            int level = LevelManager.CurrentLevel;
+
+            foreach (KeyValuePair<ProductData, ProductRow> pair in productRows)
+            {
+                ProductData product = pair.Key;
+                ProductRow row = pair.Value;
+
+                row.unitText.text = $"{product.unitsPerBox} шт. × {product.EffectivePurchasePrice}";
+                row.boxText.text = EconomyManager.Format(product.BoxCost);
+
+                bool open = UnlockManager.IsUnlocked(product.category);
+                row.controls.SetActive(open);
+                row.unlockButton.gameObject.SetActive(!open);
+                if (open) continue;
+
+                CategoryUnlock rule = unlocks != null ? unlocks.GetUnlock(product.category) : null;
+                if (rule == null) UIFactory.SetButtonState(row.unlockButton, "Недоступно", false);
+                else if (level < rule.minLevel) UIFactory.SetButtonState(row.unlockButton, $"Уровень {rule.minLevel}", false);
+                else UIFactory.SetButtonState(row.unlockButton, $"Открыть · {EconomyManager.Format(rule.cost)}",
+                    balanceOk(rule.cost));
+            }
+        }
+
+        private static bool balanceOk(int price) => Balance >= price;
+
+        private void RefreshFurniture()
+        {
+            int level = LevelManager.CurrentLevel;
+            foreach (KeyValuePair<FurnitureData, ActionItem> pair in furnitureCards)
+            {
+                FurnitureData f = pair.Key;
+                ActionItem item = pair.Value;
+                bool levelOk = level >= f.minLevel;
+
+                item.note.text = levelOk ? EconomyManager.Format(f.price) : $"Нужен уровень салона {f.minLevel}";
+                item.note.color = !levelOk ? UIFactory.MutedTextColor
+                    : balanceOk(f.price) ? UIFactory.TextColor : UIFactory.NegativeColor;
+                UIFactory.SetButtonState(item.button, levelOk ? "Купить" : "Закрыто", levelOk && balanceOk(f.price));
+            }
+        }
+
+        private void RefreshDevelopment()
+        {
+            LevelManager lm = LevelManager.Instance;
+            if (lm != null)
+            {
+                levelText.text = lm.IsMaxLevel
+                    ? $"<b>Уровень салона {lm.Level}</b>   ·   максимальный"
+                    : $"<b>Уровень салона {lm.Level}</b>   ·   опыт {lm.Xp} из {lm.XpForNextLevel}";
+                float fill = lm.IsMaxLevel || lm.XpForNextLevel <= 0 ? 1f : Mathf.Clamp01((float)lm.Xp / lm.XpForNextLevel);
+                levelBar.rectTransform.anchorMax = new Vector2(fill, 1f);
+            }
+
+            int rent = DayManager.Instance != null ? DayManager.Instance.DailyRent : 0;
+            int wages = DayManager.Instance != null ? DayManager.Instance.DailyWages : 0;
+            expensesText.text = $"Расходы в день: аренда <b>{EconomyManager.Format(rent)}</b>" +
+                                (wages > 0 ? $", зарплата <b>{EconomyManager.Format(wages)}</b>" : "");
+
             ExpansionManager expansion = ExpansionManager.Instance;
-            if (row == null || expansion == null) return;
-
-            LayoutStage next = expansion.NextStage(zone);
-            if (next == null)
+            int level = LevelManager.CurrentLevel;
+            for (int i = 0; i < stageRows.Count; i++)
             {
-                row.title.text = zone == LayoutZone.Salon ? "Торговый зал" : "Склад";
-                row.description.text = "Все расширения уже открыты.";
-                row.label.text = "Готово";
-                row.button.interactable = false;
-                return;
+                LayoutZone zone = stageKeys[i].Key;
+                int stageIndex = stageKeys[i].Value;
+                LayoutStage stage = LayoutPlan.Stages(zone)[stageIndex];
+                ActionItem item = stageRows[i];
+                int current = expansion != null ? expansion.StageOf(zone) : 0;
+
+                if (stageIndex <= current)
+                {
+                    SetStageState(item, "Открыто", UIFactory.PositiveColor, false, "Открыто");
+                }
+                else if (stageIndex > current + 1)
+                {
+                    string previous = LayoutPlan.Stages(zone)[stageIndex - 1].name;
+                    SetStageState(item, $"Сначала: {previous}", UIFactory.MutedTextColor, false, "Закрыто");
+                }
+                else if (level < stage.minLevel)
+                {
+                    SetStageState(item, $"Нужен уровень салона {stage.minLevel}", UIFactory.MutedTextColor, false,
+                        "Закрыто");
+                }
+                else
+                {
+                    bool afford = balanceOk(stage.price);
+                    SetStageState(item, $"{EconomyManager.Format(stage.price)}  ·  аренда +{EconomyManager.Format(stage.extraRent)}/день",
+                        afford ? UIFactory.AccentColor : UIFactory.NegativeColor, afford, "Купить");
+                }
             }
 
-            int total = LayoutPlan.Stages(zone).Length - 1;
-            row.title.text = $"{next.name}  ({expansion.StageOf(zone) + 1}/{total})";
-            row.description.text = $"{next.description} Аренда +{EconomyManager.Format(next.extraRent)} в день.";
-
-            if (level < next.minLevel)
+            StaffManager staff = StaffManager.Instance;
+            if (cashierRow != null && staff != null)
             {
-                row.label.text = $"Уровень салона {next.minLevel}";
-                row.button.interactable = false;
-            }
-            else
-            {
-                row.label.text = $"Купить: {EconomyManager.Format(next.price)}";
-                row.button.interactable = EconomyManager.Instance != null && EconomyManager.Instance.CanAfford(next.price);
+                if (staff.CashierHired)
+                    SetStageState(cashierRow, $"Работает · {EconomyManager.Format(staff.CashierWage)} в день",
+                        UIFactory.PositiveColor, true, "Уволить");
+                else if (level < staff.CashierMinLevel)
+                    SetStageState(cashierRow, $"Нужен уровень салона {staff.CashierMinLevel}", UIFactory.MutedTextColor,
+                        false, "Закрыто");
+                else
+                    SetStageState(cashierRow, $"Зарплата {EconomyManager.Format(staff.CashierWage)} в день",
+                        UIFactory.AccentColor, true, "Нанять");
             }
         }
 
-        private void BuyExpansion(LayoutZone zone)
+        private static void SetStageState(ActionItem item, string note, Color color, bool interactable, string label)
         {
-            if (ExpansionManager.Instance != null) ExpansionManager.Instance.TryUpgrade(zone);
-            Refresh();
+            item.note.text = note;
+            item.note.color = color == UIFactory.AccentColor ? UIFactory.TextColor : color;
+            item.stripe.color = color;
+            UIFactory.SetButtonState(item.button, label, interactable);
         }
 
-        // --- Построение окна ---
+        // ----------------------------------------------------------------
+        // Построение окна
+        // ----------------------------------------------------------------
 
         private void Build()
         {
@@ -358,28 +368,30 @@ namespace NaSvyazi.UI
 
             Image window = UIFactory.CreatePanel("Window", canvas.transform, UIFactory.PanelColor);
             UIFactory.Place(window.rectTransform, new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f),
-                Vector2.zero, new Vector2(1280f, 940f));
-            UIFactory.AddVerticalLayout(window.gameObject, 10f, 32);
+                Vector2.zero, new Vector2(WindowWidth, WindowHeight));
+            UIFactory.AddVerticalLayout(window.gameObject, 16f, Padding);
 
-            TextMeshProUGUI title = UIFactory.CreateText("Title", window.transform,
-                "Терминал салона  ·  поставщик «СвязьОпт»", 34f, UIFactory.TextColor);
+            // Заголовок: название, баланс, закрыть.
+            RectTransform header = UIFactory.CreateRow("Header", window.transform, 48f, 16f, 0);
+            TextMeshProUGUI title = UIFactory.CreateText("Title", header, "Терминал салона", 32f, UIFactory.TextColor);
             title.fontStyle = FontStyles.Bold;
-            UIFactory.SetSize(title, height: 50f);
+            UIFactory.SetSize(title, flexibleWidth: 1f);
+            balanceText = UIFactory.CreateText("Balance", header, "", 22f, UIFactory.TextColor,
+                TextAlignmentOptions.MidlineRight);
+            UIFactory.SetSize(balanceText, width: 320f);
+            Button close = UIFactory.CreateButton("Close", header, "×", Close, UIFactory.ButtonColor, 34f);
+            UIFactory.SetSize(close, width: UIFactory.ButtonHeight, height: UIFactory.ButtonHeight);
 
-            balanceText = UIFactory.CreateText("Balance", window.transform, "", 24f, UIFactory.MutedTextColor);
-            UIFactory.SetSize(balanceText, height: 34f);
-
-            // Вкладки.
-            RectTransform tabs = UIFactory.CreateRect("Tabs", window.transform);
-            UIFactory.AddHorizontalLayout(tabs.gameObject, 10f, 0);
-            UIFactory.SetSize(tabs, height: 52f);
+            // Вкладки — одинаковой ширины.
+            RectTransform tabs = UIFactory.CreateRow("Tabs", window.transform, UIFactory.ButtonHeight, 8f, 0);
             AddTabButton(tabs, "Товары", Tab.Products);
             AddTabButton(tabs, "Мебель", Tab.Furniture);
             AddTabButton(tabs, "Развитие", Tab.Development);
             RectTransform tabsSpacer = UIFactory.CreateRect("Spacer", tabs);
             UIFactory.SetSize(tabsSpacer, flexibleWidth: 1f);
-            UIFactory.SetSize(UIFactory.CreateButton("Close", tabs, "Закрыть (Esc)", Close,
-                UIFactory.ButtonColor), width: 210f);
+            TextMeshProUGUI hint = UIFactory.CreateText("Hint", tabs, "Esc — закрыть", 16f, UIFactory.MutedTextColor,
+                TextAlignmentOptions.MidlineRight);
+            UIFactory.SetSize(hint, width: 200f);
 
             RectTransform content = UIFactory.CreateRect("Content", window.transform);
             UIFactory.SetSize(content, flexibleHeight: 1f);
@@ -402,192 +414,259 @@ namespace NaSvyazi.UI
 
         private void AddTabButton(Transform parent, string label, Tab tab)
         {
-            Button b = UIFactory.CreateButton($"Tab_{tab}", parent, label, () => ShowTab(tab), UIFactory.ButtonColor);
-            UIFactory.SetSize(b, width: 200f);
+            Button b = UIFactory.CreateButton($"Tab_{tab}", parent, label, () => ShowTab(tab), UIFactory.ButtonColor, 22f);
+            UIFactory.SetSize(b, width: 200f, height: UIFactory.ButtonHeight);
             tabButtons.Add(b);
         }
 
+        private void ShowTab(Tab tab)
+        {
+            for (int i = 0; i < tabPanels.Count; i++)
+            {
+                tabPanels[i].SetActive(i == (int)tab);
+                UIFactory.SetButtonColor(tabButtons[i], i == (int)tab ? UIFactory.AccentColor : UIFactory.ButtonColor);
+            }
+            Refresh();
+        }
+
+        // --- Товары: таблица ---
+
         private void BuildProductsPanel(RectTransform panel)
         {
-            CreateRow(panel, null, true);
+            // Шапка таблицы — те же колонки, что и у строк.
+            RectTransform head = UIFactory.CreateRow("TableHeader", panel, 28f, 16f, 16);
+            UIFactory.SetSize(UIFactory.CreateRect("IconSpace", head), width: 6f);
+            AddCell(head, "ТОВАР", 15f, UIFactory.MutedTextColor, -1f);
+            AddCell(head, "КАТЕГОРИЯ", 15f, UIFactory.MutedTextColor, 190f);
+            AddCell(head, "В КОРОБКЕ", 15f, UIFactory.MutedTextColor, 170f);
+            AddCell(head, "ЦЕНА КОРОБКИ", 15f, UIFactory.MutedTextColor, 160f);
+            AddCell(head, "КОРОБОК", 15f, UIFactory.MutedTextColor, QtyColumn, TextAlignmentOptions.Center);
 
+            RectTransform list = UIFactory.CreateScrollList("Rows", panel, 6f);
             List<ProductData> products = catalog != null ? catalog.products : new List<ProductData>();
             foreach (ProductData product in products)
             {
                 if (product == null) continue;
                 cart[product] = 0;
-                CreateRow(panel, product, false);
+                CreateProductRow(list, product);
             }
 
-            RectTransform spacer = UIFactory.CreateRect("Spacer", panel);
-            UIFactory.SetSize(spacer, flexibleHeight: 1f);
+            // Итог и кнопки заказа.
+            Image divider = UIFactory.CreatePanel("Divider", panel, new Color(1f, 1f, 1f, 0.08f));
+            UIFactory.SetSize(divider, height: 1f);
 
-            RectTransform footer = UIFactory.CreateRect("Footer", panel);
-            UIFactory.AddHorizontalLayout(footer.gameObject, 12f, 0);
-            UIFactory.SetSize(footer, height: 64f);
-
-            totalText = UIFactory.CreateText("Total", footer, "", 28f, UIFactory.TextColor);
+            RectTransform footer = UIFactory.CreateRow("Footer", panel, 60f, 12f, 0);
+            totalText = UIFactory.CreateText("Total", footer, "", 24f, UIFactory.TextColor);
             UIFactory.SetSize(totalText, flexibleWidth: 1f);
 
-            UIFactory.SetSize(UIFactory.CreateButton("Clear", footer, "Очистить", ClearCart,
-                UIFactory.ButtonColor), width: 180f);
-            orderButton = UIFactory.CreateButton("Order", footer, "Оформить заказ", PlaceOrder,
-                UIFactory.AccentColor);
-            UIFactory.SetSize(orderButton, width: 260f);
+            Button clear = UIFactory.CreateButton("Clear", footer, "Очистить", ClearCart, UIFactory.ButtonColor, 22f);
+            UIFactory.SetSize(clear, width: 180f, height: UIFactory.ButtonHeight);
+            orderButton = UIFactory.CreateButton("Order", footer, "Оформить заказ", PlaceOrder, UIFactory.AccentColor, 22f);
+            UIFactory.SetSize(orderButton, width: ActionWidth, height: UIFactory.ButtonHeight);
         }
+
+        private void CreateProductRow(Transform parent, ProductData product)
+        {
+            RectTransform row = UIFactory.CreateRow($"Row_{product.id}", parent, UIFactory.RowHeight, 16f, 16,
+                UIFactory.RowColor);
+
+            // Цветная метка товара (совпадает с цветом товара на полке).
+            Image icon = UIFactory.CreatePanel("Icon", row, product.color);
+            UIFactory.SetSize(icon, width: 6f, height: 32f);
+
+            AddCell(row, product.displayName, 21f, UIFactory.TextColor, -1f);
+            AddCell(row, product.category.ToDisplayName(), 18f, UIFactory.MutedTextColor, 190f);
+            TextMeshProUGUI unit = AddCell(row, "", 18f, UIFactory.MutedTextColor, 170f);
+            TextMeshProUGUI box = AddCell(row, "", 21f, UIFactory.TextColor, 160f);
+
+            // Ячейка «количество»: либо − 0 +, либо кнопка открытия категории — одинаковой ширины.
+            RectTransform cell = UIFactory.CreateRect("QtyCell", row);
+            UIFactory.SetSize(cell, width: QtyColumn, height: UIFactory.ButtonHeight);
+
+            RectTransform controls = UIFactory.CreateRow("Controls", cell, UIFactory.ButtonHeight, 8f, 0);
+            UIFactory.Stretch(controls);
+            controls.GetComponent<HorizontalLayoutGroup>().childAlignment = TextAnchor.MiddleCenter;
+
+            Button minus = UIFactory.CreateButton("Minus", controls, "−", () => ChangeQuantity(product, -1),
+                UIFactory.ButtonColor, 28f);
+            UIFactory.SetSize(minus, width: UIFactory.ButtonHeight, height: UIFactory.ButtonHeight);
+            TextMeshProUGUI qty = UIFactory.CreateText("Qty", controls, "0", 24f, UIFactory.TextColor,
+                TextAlignmentOptions.Center);
+            UIFactory.SetSize(qty, width: 64f, height: UIFactory.ButtonHeight);
+            quantityTexts[product] = qty;
+            Button plus = UIFactory.CreateButton("Plus", controls, "+", () => ChangeQuantity(product, 1),
+                UIFactory.ButtonColor, 28f);
+            UIFactory.SetSize(plus, width: UIFactory.ButtonHeight, height: UIFactory.ButtonHeight);
+
+            Button unlock = UIFactory.CreateButton("Unlock", cell, "", () => Unlock(product), UIFactory.AccentColor, 18f);
+            UIFactory.Stretch(unlock.GetComponent<RectTransform>());
+
+            productRows[product] = new ProductRow
+            {
+                controls = controls.gameObject,
+                unlockButton = unlock,
+                unitText = unit,
+                boxText = box
+            };
+        }
+
+        /// <summary>Ячейка таблицы; width &lt; 0 — растягивается на свободное место.</summary>
+        private static TextMeshProUGUI AddCell(Transform row, string text, float size, Color color, float width,
+            TextAlignmentOptions alignment = TextAlignmentOptions.MidlineLeft)
+        {
+            TextMeshProUGUI cell = UIFactory.CreateText("Cell", row, text, size, color, alignment);
+            cell.textWrappingMode = TextWrappingModes.NoWrap;
+            cell.overflowMode = TextOverflowModes.Ellipsis;
+            if (width >= 0f) UIFactory.SetSize(cell, width: width);
+            else UIFactory.SetSize(cell, flexibleWidth: 1f);
+            return cell;
+        }
+
+        // --- Мебель: сетка карточек ---
 
         private void BuildFurniturePanel(RectTransform panel)
         {
             TextMeshProUGUI hint = UIFactory.CreateText("Hint", panel,
-                "Купленная мебель сразу появляется перед вами: выберите место прицелом, R — повернуть, ЛКМ — поставить. " +
-                "Стоящую мебель можно переставить: наведите прицел на каркас и нажмите E. Список прокручивается колесом мыши.",
-                20f, UIFactory.MutedTextColor, TextAlignmentOptions.TopLeft);
-            UIFactory.SetSize(hint, height: 50f);
+                "Мебель появляется перед вами: прицел — место, R — повернуть, ЛКМ — поставить. " +
+                "Переставить стоящую мебель — E по каркасу.",
+                18f, UIFactory.MutedTextColor);
+            UIFactory.SetSize(hint, height: 30f);
 
             if (furnitureCatalog == null)
             {
                 TextMeshProUGUI missing = UIFactory.CreateText("Missing", panel,
                     "Каталог мебели не подключён: выполните «На связи → Подготовить сцену (итерация 8)».",
-                    22f, UIFactory.NegativeColor);
+                    20f, UIFactory.NegativeColor);
                 UIFactory.SetSize(missing, height: 40f);
-            }
-            else
-            {
-                // Мебели много — список прокручивается колесом мыши.
-                RectTransform list = UIFactory.CreateScrollList("List", panel, 8f);
-                foreach (FurnitureData f in furnitureCatalog.items)
-                {
-                    if (f == null) continue;
-                    FurnitureData data = f;
-                    furnitureRows[f] = CreateActionRow(list, f.displayName, f.description, () => BuyFurniture(data), 64f);
-                }
-            }
-        }
-
-        private void BuildDevelopmentPanel(RectTransform panel)
-        {
-            developmentInfo = UIFactory.CreateText("Info", panel, "", 22f, UIFactory.TextColor, TextAlignmentOptions.TopLeft);
-            UIFactory.SetSize(developmentInfo, height: 70f);
-
-            salonRow = CreateActionRow(panel, "Торговый зал", "", () => BuyExpansion(LayoutZone.Salon));
-            storageRow = CreateActionRow(panel, "Склад", "", () => BuyExpansion(LayoutZone.Storage));
-
-            int wage = StaffManager.Instance != null ? StaffManager.Instance.CashierWage : 1500;
-            cashierRow = CreateActionRow(panel, "Кассир",
-                $"Сам сканирует товар, принимает оплату и консультирует (не всегда идеально). Зарплата {EconomyManager.Format(wage)} в день.",
-                ToggleCashier);
-
-            RectTransform spacer = UIFactory.CreateRect("Spacer", panel);
-            UIFactory.SetSize(spacer, flexibleHeight: 1f);
-        }
-
-        private ActionRow CreateActionRow(Transform parent, string name, string description, System.Action onClick,
-            float height = 84f)
-        {
-            Image row = UIFactory.CreatePanel($"Row_{name}", parent, UIFactory.RowColor);
-            UIFactory.AddHorizontalLayout(row.gameObject, 16f, 16);
-            UIFactory.SetSize(row, height: height);
-
-            TextMeshProUGUI title = UIFactory.CreateText("Name", row.transform, name, 26f, UIFactory.TextColor);
-            title.fontStyle = FontStyles.Bold;
-            title.enableAutoSizing = true;
-            title.fontSizeMin = 16f;
-            title.fontSizeMax = 26f;
-            UIFactory.SetSize(title, width: 300f);
-
-            TextMeshProUGUI desc = UIFactory.CreateText("Desc", row.transform, description, 19f, UIFactory.MutedTextColor);
-            desc.enableAutoSizing = true;
-            desc.fontSizeMin = 14f;
-            desc.fontSizeMax = 19f;
-            UIFactory.SetSize(desc, flexibleWidth: 1f);
-
-            Button button = UIFactory.CreateButton("Action", row.transform, "", onClick, UIFactory.AccentColor, 22f);
-            UIFactory.SetSize(button, width: 280f);
-
-            return new ActionRow
-            {
-                button = button,
-                label = button.GetComponentInChildren<TextMeshProUGUI>(),
-                title = title,
-                description = desc
-            };
-        }
-
-        /// <summary>Строка таблицы: заголовок (product == null) или товар.</summary>
-        private void CreateRow(Transform parent, ProductData product, bool header)
-        {
-            Image row = UIFactory.CreatePanel(header ? "Header" : $"Row_{product.id}", parent,
-                header ? Color.clear : UIFactory.RowColor);
-            UIFactory.AddHorizontalLayout(row.gameObject, 12f, 16);
-            UIFactory.SetSize(row, height: header ? 30f : 46f);
-
-            // Цветной значок товара (цвет совпадает с товаром на полке).
-            Image icon = UIFactory.CreatePanel("Icon", row.transform, header ? Color.clear : product.color);
-            UIFactory.SetSize(icon, width: 22f);
-
-            float size = header ? 20f : 24f;
-            Color main = header ? UIFactory.MutedTextColor : UIFactory.TextColor;
-
-            AddCell(row.transform, header ? "Товар" : product.displayName, size, main, 330f);
-            AddCell(row.transform, header ? "Категория" : product.category.ToDisplayName(),
-                header ? size : 20f, UIFactory.MutedTextColor, 190f);
-            TextMeshProUGUI unitCell = AddCell(row.transform,
-                header ? "В коробке" : $"{product.unitsPerBox} шт. × {product.EffectivePurchasePrice}",
-                header ? size : 20f, UIFactory.MutedTextColor, 180f);
-            TextMeshProUGUI boxCell = AddCell(row.transform, header ? "Цена коробки" :
-                EconomyManager.Format(product.BoxCost), size, main, 170f);
-            if (!header) priceCells[product] = new[] { unitCell, boxCell };
-
-            if (header)
-            {
-                AddCell(row.transform, "Коробок", size, main, 190f);
                 return;
             }
 
-            // Выбор количества коробок (для открытых категорий).
-            RectTransform controls = UIFactory.CreateRect("Controls", row.transform);
-            UIFactory.AddHorizontalLayout(controls.gameObject, 8f, 0);
-            UIFactory.SetSize(controls, width: 196f);
+            float width = WindowWidth - Padding * 2;
+            const float spacing = 14f;
+            Vector2 cell = new Vector2(Mathf.Floor((width - spacing * 2f) / 3f), CardHeight);
+            RectTransform grid = UIFactory.CreateScrollList("Cards", panel, spacing, 3, cell);
 
-            UIFactory.SetSize(UIFactory.CreateButton("Minus", controls, "−",
-                () => ChangeQuantity(product, -1), UIFactory.ButtonColor, 30f), width: 56f);
-
-            TextMeshProUGUI qty = UIFactory.CreateText("Qty", controls, "0", 26f, UIFactory.TextColor,
-                TextAlignmentOptions.Center);
-            UIFactory.SetSize(qty, width: 60f);
-            quantityTexts[product] = qty;
-
-            UIFactory.SetSize(UIFactory.CreateButton("Plus", controls, "+",
-                () => ChangeQuantity(product, 1), UIFactory.ButtonColor, 30f), width: 56f);
-
-            // Кнопка открытия категории (для закрытых категорий).
-            Button unlock = UIFactory.CreateButton("Unlock", row.transform, "", () => Unlock(product),
-                UIFactory.AccentColor, 20f);
-            UIFactory.SetSize(unlock, width: 196f);
-
-            rowLocks[product] = new RowLock
+            foreach (FurnitureData f in furnitureCatalog.items)
             {
-                controls = controls.gameObject,
-                unlockButton = unlock,
-                unlockLabel = unlock.GetComponentInChildren<TextMeshProUGUI>()
-            };
-        }
-
-        private static TextMeshProUGUI AddCell(Transform row, string text, float size, Color color, float width)
-        {
-            TextMeshProUGUI cell = UIFactory.CreateText("Cell", row, text, size, color);
-            UIFactory.SetSize(cell, width: width);
-            return cell;
-        }
-
-        /// <summary>Обновить закупочные цены (меняются навыком «Оптовые скидки»).</summary>
-        private void RefreshPrices()
-        {
-            foreach (KeyValuePair<ProductData, TextMeshProUGUI[]> pair in priceCells)
-            {
-                pair.Value[0].text = $"{pair.Key.unitsPerBox} шт. × {pair.Key.EffectivePurchasePrice}";
-                pair.Value[1].text = EconomyManager.Format(pair.Key.BoxCost);
+                if (f == null) continue;
+                FurnitureData data = f;
+                furnitureCards[f] = CreateCard(grid, f.displayName, f.description, () => BuyFurniture(data));
             }
+        }
+
+        private static ActionItem CreateCard(Transform parent, string title, string description, System.Action onClick)
+        {
+            Image card = UIFactory.CreatePanel($"Card_{title}", parent, UIFactory.RowColor);
+            UIFactory.AddVerticalLayout(card.gameObject, 6f, 18);
+
+            TextMeshProUGUI name = UIFactory.CreateText("Title", card.transform, title, 22f, UIFactory.TextColor);
+            name.fontStyle = FontStyles.Bold;
+            UIFactory.SetSize(name, height: 30f);
+
+            TextMeshProUGUI desc = UIFactory.CreateText("Desc", card.transform, description, 16f,
+                UIFactory.MutedTextColor, TextAlignmentOptions.TopLeft);
+            desc.overflowMode = TextOverflowModes.Ellipsis;
+            UIFactory.SetSize(desc, flexibleHeight: 1f);
+
+            RectTransform bottom = UIFactory.CreateRow("Bottom", card.transform, UIFactory.ButtonHeight, 12f, 0);
+            TextMeshProUGUI note = UIFactory.CreateText("Price", bottom, "", 20f, UIFactory.TextColor);
+            note.fontStyle = FontStyles.Bold;
+            UIFactory.SetSize(note, flexibleWidth: 1f);
+            Button button = UIFactory.CreateButton("Buy", bottom, "Купить", onClick, UIFactory.AccentColor, 20f);
+            UIFactory.SetSize(button, width: 150f, height: UIFactory.ButtonHeight);
+
+            return new ActionItem { button = button, note = note };
+        }
+
+        // --- Развитие: уровень, расширения, персонал ---
+
+        private void BuildDevelopmentPanel(RectTransform panel)
+        {
+            RectTransform list = UIFactory.CreateScrollList("List", panel, 8f);
+
+            // Сводка: уровень с полосой опыта и расходы.
+            Image summary = UIFactory.CreatePanel("Summary", list, UIFactory.RowColor);
+            UIFactory.AddVerticalLayout(summary.gameObject, 8f, 18);
+            UIFactory.SetSize(summary, height: 112f);
+
+            levelText = UIFactory.CreateText("Level", summary.transform, "", 22f, UIFactory.TextColor);
+            UIFactory.SetSize(levelText, height: 28f);
+
+            Image barBack = UIFactory.CreatePanel("Bar", summary.transform, new Color(1f, 1f, 1f, 0.08f));
+            UIFactory.SetSize(barBack, height: 6f);
+            levelBar = UIFactory.CreatePanel("Fill", barBack.transform, UIFactory.AccentColor);
+            levelBar.rectTransform.anchorMin = Vector2.zero;
+            levelBar.rectTransform.anchorMax = new Vector2(0f, 1f);
+            levelBar.rectTransform.offsetMin = Vector2.zero;
+            levelBar.rectTransform.offsetMax = Vector2.zero;
+
+            expensesText = UIFactory.CreateText("Expenses", summary.transform, "", 18f, UIFactory.MutedTextColor);
+            UIFactory.SetSize(expensesText, height: 26f);
+
+            AddSection(list, "ТОРГОВЫЙ ЗАЛ", "Сначала зал расширяется дважды, затем открывается второй зал за аркой.");
+            for (int i = 1; i < LayoutPlan.Salon.Length; i++)
+                AddStageRow(list, LayoutZone.Salon, i);
+
+            AddSection(list, "СКЛАД", "Больше места под складские стеллажи и коробки.");
+            for (int i = 1; i < LayoutPlan.Storage.Length; i++)
+                AddStageRow(list, LayoutZone.Storage, i);
+
+            AddSection(list, "ПЕРСОНАЛ", "");
+            cashierRow = CreateDevRow(list, "Кассир",
+                "Сам сканирует товар, принимает оплату и консультирует по тарифам (не всегда идеально).", ToggleCashier);
+        }
+
+        private static void AddSection(Transform parent, string title, string subtitle)
+        {
+            RectTransform row = UIFactory.CreateRow($"Section_{title}", parent, 44f, 16f, 4);
+            row.GetComponent<HorizontalLayoutGroup>().childAlignment = TextAnchor.LowerLeft;
+            TextMeshProUGUI t = UIFactory.CreateText("Title", row, title, 16f, UIFactory.AccentColor);
+            t.fontStyle = FontStyles.Bold;
+            t.characterSpacing = 4f;
+            UIFactory.SetSize(t, width: 220f, height: 26f);
+            TextMeshProUGUI s = UIFactory.CreateText("Subtitle", row, subtitle, 16f, UIFactory.MutedTextColor);
+            UIFactory.SetSize(s, flexibleWidth: 1f);
+            s.alignment = TextAlignmentOptions.BottomLeft;
+        }
+
+        private void AddStageRow(Transform parent, LayoutZone zone, int index)
+        {
+            LayoutStage stage = LayoutPlan.Stages(zone)[index];
+            stageKeys.Add(new KeyValuePair<LayoutZone, int>(zone, index));
+            stageRows.Add(CreateDevRow(parent, stage.name, stage.description, () => BuyExpansion(zone)));
+        }
+
+        /// <summary>Строка развития: цветная метка, название с описанием, состояние и кнопка.</summary>
+        private static ActionItem CreateDevRow(Transform parent, string title, string description, System.Action onClick)
+        {
+            RectTransform row = UIFactory.CreateRow($"Dev_{title}", parent, 76f, 18f, 0, UIFactory.RowColor);
+            row.GetComponent<HorizontalLayoutGroup>().padding = new RectOffset(0, 18, 0, 0);
+
+            Image stripe = UIFactory.CreatePanel("Stripe", row, UIFactory.MutedTextColor);
+            UIFactory.SetSize(stripe, width: 6f, height: 76f);
+
+            RectTransform texts = UIFactory.CreateRect("Texts", row);
+            UIFactory.AddVerticalLayout(texts.gameObject, 2f, 0).childAlignment = TextAnchor.MiddleLeft;
+            UIFactory.SetSize(texts, flexibleWidth: 1f, height: 60f);
+            TextMeshProUGUI name = UIFactory.CreateText("Title", texts, title, 21f, UIFactory.TextColor);
+            name.fontStyle = FontStyles.Bold;
+            UIFactory.SetSize(name, height: 28f);
+            TextMeshProUGUI desc = UIFactory.CreateText("Desc", texts, description, 16f, UIFactory.MutedTextColor);
+            desc.textWrappingMode = TextWrappingModes.NoWrap;
+            desc.overflowMode = TextOverflowModes.Ellipsis;
+            UIFactory.SetSize(desc, height: 24f);
+
+            TextMeshProUGUI note = UIFactory.CreateText("State", row, "", 17f, UIFactory.TextColor,
+                TextAlignmentOptions.MidlineRight);
+            note.enableAutoSizing = true;
+            note.fontSizeMin = 13f;
+            note.fontSizeMax = 17f;
+            UIFactory.SetSize(note, width: 330f);
+
+            Button button = UIFactory.CreateButton("Action", row, "", onClick, UIFactory.AccentColor, 20f);
+            UIFactory.SetSize(button, width: 150f, height: UIFactory.ButtonHeight);
+
+            return new ActionItem { button = button, note = note, stripe = stripe };
         }
     }
 }

@@ -178,12 +178,19 @@ namespace NaSvyazi.Building
                 ? layout.Contains(LayoutZone.Salon, footprint)
                 : Contains(LayoutPlan.Salon[0].areas[0], footprint);
 
-            // На складе — только складские стеллажи: покупатели туда не заходят.
+            // Складской стеллаж — только на склад, остальная мебель — только в зал:
+            // покупатели на склад не заходят, а коробкам в зале не место.
             bool inStorage = layout != null && layout.Contains(LayoutZone.Storage, footprint);
-            if (inStorage && ghost.GetComponent<StorageRack>() == null)
+            bool isStorageRack = ghost.GetComponent<StorageRack>() != null;
+            if (inStorage && !isStorageRack)
             {
                 invalidReason = "На склад — только складские стеллажи";
                 return false;
+            }
+            if (isStorageRack)
+            {
+                if (!inStorage) invalidReason = "Складской стеллаж ставится только на склад";
+                inSalon = false;
             }
 
             // Рекламный стенд можно вынести на улицу — там ему и место.
