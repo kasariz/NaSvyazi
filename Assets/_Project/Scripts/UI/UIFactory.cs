@@ -152,8 +152,11 @@ namespace NaSvyazi.UI
             if (le == null) le = c.gameObject.AddComponent<LayoutElement>();
             le.preferredWidth = width;
             le.preferredHeight = height;
-            le.flexibleWidth = flexibleWidth;
-            le.flexibleHeight = flexibleHeight;
+
+            // Если задан точный размер, элемент не должен растягиваться: иначе вложенная раскладка
+            // (например, ряд кнопок) сообщает «гибкость» и забирает свободное место у соседей.
+            le.flexibleWidth = flexibleWidth >= 0f ? flexibleWidth : (width >= 0f ? 0f : -1f);
+            le.flexibleHeight = flexibleHeight >= 0f ? flexibleHeight : (height >= 0f ? 0f : -1f);
             return le;
         }
 

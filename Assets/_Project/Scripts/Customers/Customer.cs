@@ -14,6 +14,7 @@ namespace NaSvyazi.Customers
     {
         GoingToShelf, // идёт к полке с нужным товаром
         Browsing,     // смотрит товар и цену, принимает решение
+        GoingToQueue, // идёт к концу очереди (встанет в неё, только когда дойдёт)
         InQueue,      // стоит в очереди к кассе
         Leaving       // уходит из салона
     }
@@ -198,6 +199,10 @@ namespace NaSvyazi.Customers
                     if (stateTimer >= browseTime) DecideAndTake();
                     break;
 
+                case CustomerState.GoingToQueue:
+                    UpdateGoingToQueue();
+                    break;
+
                 case CustomerState.InQueue:
                     UpdateQueue();
                     break;
@@ -290,6 +295,10 @@ namespace NaSvyazi.Customers
 
         // --- Очередь и оплата ---
 
+        /// <summary>
+        /// Идём к хвосту очереди. Место в очереди занимается только по приходе —
+        /// так соблюдается честный порядок: кто раньше подошёл к кассе, тот раньше обслужен.
+        /// </summary>
         private void JoinQueue()
         {
             if (queue == null)
@@ -298,6 +307,23 @@ namespace NaSvyazi.Customers
                 return;
             }
 
+            SetState(CustomerState.GoingToQueue);
+            MoveTo(queue.GetSpot(queue.Count));
+        }
+
+        private void UpdateGoingToQueue()
+        {
+            Vector3 tail = queue.GetSpot(queue.Count);
+
+            // Очередь могла сдвинуться — периодически уточняем цель.
+            if (Mathf.Repeat(stateTimer, 0.5f) < Time.deltaTime) MoveTo(tail);
+
+            if (IsNear(tail, 1.5f) || HasArrived() || stateTimer > stuckTimeout)
+                EnterQueue();
+        }
+
+        private void EnterQueue()
+        {
             queue.Join(this);
             queueIndex = -1;
             patienceTimer = queuePatience;

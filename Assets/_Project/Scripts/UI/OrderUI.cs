@@ -423,7 +423,14 @@ namespace NaSvyazi.UI
                 20f, UIFactory.MutedTextColor, TextAlignmentOptions.TopLeft);
             UIFactory.SetSize(hint, height: 60f);
 
-            if (furnitureCatalog != null)
+            if (furnitureCatalog == null)
+            {
+                TextMeshProUGUI missing = UIFactory.CreateText("Missing", panel,
+                    "Каталог мебели не подключён: выполните «На связи → Подготовить сцену (итерация 8)».",
+                    22f, UIFactory.NegativeColor);
+                UIFactory.SetSize(missing, height: 40f);
+            }
+            else
                 foreach (FurnitureData f in furnitureCatalog.items)
                 {
                     if (f == null) continue;
