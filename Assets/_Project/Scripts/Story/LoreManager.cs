@@ -124,7 +124,7 @@ namespace NaSvyazi.Story
             if (layout != null && layout.SalonStage >= 1) Enqueue("expand1");
             if (level >= 5 && level < 99) Enqueue("level5");
             if (layout != null && layout.SalonStage >= 3) Enqueue("hall2");
-            if (LevelManager.Instance != null && LevelManager.Instance.IsMaxLevel) Enqueue("final");
+            // Письмо «final» больше не приходит само: его текст показывается в окне победы (GoalManager).
         }
 
         private void Enqueue(string id)

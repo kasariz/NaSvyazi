@@ -65,6 +65,9 @@ namespace NaSvyazi.Store
         {
             Instance = this;
             Minutes = openHour * 60;
+
+            // Цель игры и условия поражения (банкротство, нулевая репутация).
+            GoalManager.Ensure(gameObject);
         }
 
         private void OnDestroy()
@@ -150,15 +153,34 @@ namespace NaSvyazi.Store
             DayReport report = DayReport.Collect(Day, rent, wages);
             report.dirtPenalty = dirtPenalty;
 
+            // Итог дня для цели игры: долг, банкротство, закрытие или победа.
+            DayOutcome outcome = GoalManager.Instance != null ? GoalManager.Instance.EvaluateDay() : DayOutcome.Continue;
+            report.debtDays = GoalManager.Instance != null ? GoalManager.Instance.DebtDays : 0;
+            report.maxDebtDays = GoalManager.Instance != null ? GoalManager.Instance.MaxDebtDays : 0;
+
             // Если в момент окончания дня открыт терминал или идёт расстановка мебели,
             // отчёт не мог открыться и новый день не начинался. Закрываем всё заранее.
             if (Building.FurniturePlacer.Instance != null) Building.FurniturePlacer.Instance.CancelPlacement();
             ModalWindow.CloseCurrent();
 
+            System.Action afterReport = () => AfterReport(outcome);
             if (reportUI != null)
-                reportUI.ShowReport(report, StartNextDay, FindAnyObjectByType<PlayerController>());
+                reportUI.ShowReport(report, afterReport, FindAnyObjectByType<PlayerController>());
             else
+                afterReport();
+        }
+
+        /// <summary>После отчёта: окно победы/поражения или следующий день.</summary>
+        private void AfterReport(DayOutcome outcome)
+        {
+            if (outcome == DayOutcome.Continue || GoalManager.Instance == null)
+            {
                 StartNextDay();
+                return;
+            }
+
+            // Победа: «Продолжить» начинает следующий день. Поражение: окно предлагает начать заново.
+            GoalManager.Instance.ShowOutcome(outcome, Day, StartNextDay);
         }
 
         private void StartNextDay()
@@ -175,7 +197,14 @@ namespace NaSvyazi.Store
             if (decor > 0) ReputationManager.Add(decor, "уютный салон");
 
             RaiseTime();
-            GameEvents.Notify($"День {Day}. Подготовьте салон и откройте его табличкой у входа.");
+            int debt = GoalManager.Instance != null ? GoalManager.Instance.DebtDays : 0;
+            if (debt > 0)
+            {
+                int left = GoalManager.Instance.MaxDebtDays - debt;
+                GameEvents.Notify($"День {Day}. Салон в долгах! До банкротства: {left} {GoalManager.DaysWord(left)} — выйдите в плюс.");
+            }
+            else
+                GameEvents.Notify($"День {Day}. Подготовьте салон и откройте его табличкой у входа.");
 
             if (Save.SaveSystem.Instance != null) Save.SaveSystem.Instance.Save();
         }
@@ -227,6 +256,8 @@ namespace NaSvyazi.Store
         public int thievesCaught;
         public string eventName;
         public int dirtPenalty;
+        public int debtDays;
+        public int maxDebtDays;
 
         public int Profit => income - expenses;
 

@@ -753,8 +753,15 @@ namespace NaSvyazi.EditorTools
             AddFace(data, Vector3.right, Vector3.forward, Vector3.up);
             AddFace(data, Vector3.left, Vector3.up, Vector3.forward);
 
+            // Имя файла всегда новое. Раньше счётчик после перекомпиляции начинался с нуля,
+            // и итерация 13 перезаписывала LayoutBox_0/1 (тротуар и дорогу) мешами полов соседей.
+            EnsureFolder(LayoutMeshesFolder);
+            string path = $"{LayoutMeshesFolder}/LayoutBox_{layoutMeshCounter++}.asset";
+            while (AssetDatabase.LoadAssetAtPath<Mesh>(path) != null)
+                path = $"{LayoutMeshesFolder}/LayoutBox_{layoutMeshCounter++}.asset";
+
             Mesh mesh = new Mesh();
-            mesh.name = $"LayoutBox_{layoutMeshCounter}";
+            mesh.name = System.IO.Path.GetFileNameWithoutExtension(path);
             mesh.SetVertices(data.vertices);
             mesh.SetNormals(data.normals);
             mesh.SetUVs(0, data.uvs);
@@ -762,7 +769,7 @@ namespace NaSvyazi.EditorTools
             mesh.RecalculateBounds();
             mesh.RecalculateTangents();
 
-            AssetDatabase.CreateAsset(mesh, $"{LayoutMeshesFolder}/LayoutBox_{layoutMeshCounter++}.asset");
+            AssetDatabase.CreateAsset(mesh, path);
             return mesh;
         }
 

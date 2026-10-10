@@ -50,6 +50,13 @@ namespace NaSvyazi.UI
                 f.AppendLine($"   потери на сдаче:  {EconomyManager.Format(report.changeLoss)}");
             f.AppendLine();
             f.AppendLine($"Баланс:  {EconomyManager.Format(report.balance)}");
+            if (report.debtDays > 0)
+            {
+                int left = report.maxDebtDays - report.debtDays;
+                f.AppendLine(left > 0
+                    ? $"<color=#F25959>Салон в долгах! До банкротства: {left} {Progression.GoalManager.DaysWord(left)}</color>"
+                    : "<color=#F25959>Долг не погашен — салон банкрот</color>");
+            }
             f.Append($"Репутация:  {report.reputation}/100");
             financeText.text = f.ToString();
 

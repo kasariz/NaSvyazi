@@ -33,6 +33,9 @@ namespace NaSvyazi.UI
         private Image notificationPanel;
         private TextMeshProUGUI notificationText;
         private float notificationTimer;
+        private TextMeshProUGUI goalText;
+        private float goalTimer;
+        private string shownGoal;
         private float flashTimer;
 
         private void Awake() => Build();
@@ -70,6 +73,21 @@ namespace NaSvyazi.UI
             }
 
             RefreshEventAndSkills();
+            RefreshGoal();
+        }
+
+        /// <summary>Плашка цели игры и предупреждение о долге (обновляется дважды в секунду).</summary>
+        private void RefreshGoal()
+        {
+            goalTimer -= Time.deltaTime;
+            if (goalTimer > 0f) return;
+            goalTimer = 0.5f;
+
+            string text = Progression.GoalManager.Instance != null ? Progression.GoalManager.Instance.BuildGoalText() : "";
+            if (text == shownGoal) return;
+            shownGoal = text;
+            goalText.text = text;
+            goalText.transform.parent.gameObject.SetActive(!string.IsNullOrEmpty(text));
         }
 
         /// <summary>Плашки «событие дня» и «есть свободные очки навыков» (обновляются при изменении).</summary>
@@ -195,6 +213,19 @@ namespace NaSvyazi.UI
             eventText = UIFactory.CreateText("EventText", eventPanel.transform, "", 22f, Color.white);
             UIFactory.Stretch(eventText.rectTransform, 14f);
             eventPanel.gameObject.SetActive(false);
+
+            // Цель игры — слева под плашкой события; высота подстраивается под текст.
+            Image goalPanel = UIFactory.CreatePanel("Goal", canvas.transform, new Color(0.08f, 0.09f, 0.11f, 0.8f));
+            UIFactory.Place(goalPanel.rectTransform, new Vector2(0f, 1f), new Vector2(0f, 1f),
+                new Vector2(24f, -146f), new Vector2(460f, 0f));
+            VerticalLayoutGroup goalLayout = UIFactory.AddVerticalLayout(goalPanel.gameObject, 0f, 12);
+            goalLayout.childControlHeight = true;
+            goalLayout.childForceExpandHeight = false;
+            goalPanel.gameObject.AddComponent<ContentSizeFitter>().verticalFit = ContentSizeFitter.FitMode.PreferredSize;
+            goalText = UIFactory.CreateText("GoalText", goalPanel.transform, "", 19f, UIFactory.TextColor,
+                TextAlignmentOptions.TopLeft);
+            goalText.lineSpacing = 6f;
+            goalPanel.gameObject.SetActive(false);
 
             skillPanel = UIFactory.CreatePanel("Skills", canvas.transform, new Color(0.08f, 0.09f, 0.11f, 0.8f));
             UIFactory.Place(skillPanel.rectTransform, new Vector2(1f, 1f), new Vector2(1f, 1f),

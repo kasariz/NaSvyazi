@@ -86,6 +86,11 @@ namespace NaSvyazi.Save
                 }
             }
             if (Story.LoreManager.Instance != null) data.letters = Story.LoreManager.Instance.GetShown();
+            if (GoalManager.Instance != null)
+            {
+                data.goalReached = GoalManager.Instance.GoalReached;
+                data.debtDays = GoalManager.Instance.DebtDays;
+            }
 
             foreach (PlacedFurniture f in FindObjectsByType<PlacedFurniture>(FindObjectsSortMode.None))
             {
@@ -185,6 +190,7 @@ namespace NaSvyazi.Save
                 UpgradeManager.Instance.SetState(data.shelfTier, data.hasCart, data.cartPosition, data.cartRotation);
             if (Story.LoreManager.Instance != null && data.letters != null)
                 Story.LoreManager.Instance.SetShown(data.letters);
+            if (GoalManager.Instance != null) GoalManager.Instance.SetState(data.goalReached, data.debtDays);
 
             RestoreFurniture(data.furniture);
 
@@ -364,6 +370,8 @@ namespace NaSvyazi.Save
         public Vector3 cartPosition;
         public Quaternion cartRotation = Quaternion.identity;
         public List<string> letters = new List<string>();
+        public bool goalReached;
+        public int debtDays;
     }
 
     [Serializable]
