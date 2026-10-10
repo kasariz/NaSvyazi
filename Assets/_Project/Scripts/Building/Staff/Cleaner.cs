@@ -7,20 +7,25 @@ namespace NaSvyazi.Building
 {
     /// <summary>
     /// Уборщица: ходит со шваброй к ближайшему пятну грязи и отмывает его.
+    /// Швабра держится как настоящая: руки у пояса справа, черенок наклонён вперёд-вниз,
+    /// насадка на полу перед уборщицей; при мытье насадка ходит из стороны в сторону.
     /// Навык «Чистота — залог успеха» ускоряет уборку.
     /// </summary>
     public class Cleaner : StaffWorker
     {
+        private const float StickLength = 1.35f;
+
         protected override string Title => "Уборщица";
+        protected override string AnimationPrefix => "cleaner";
         protected override float SpeedMultiplier => SkillManager.CleanerSpeedMultiplier;
 
-        private Transform mop;
+        private Transform stick, head;
         private float swayPhase;
         private bool scrubbing;
 
         protected override IEnumerator Work()
         {
-            mop = BuildMop();
+            BuildMop();
 
             while (true)
             {
@@ -32,8 +37,9 @@ namespace NaSvyazi.Building
                     continue;
                 }
 
-                yield return WalkTo(spot.transform.position, 0.7f);
+                yield return WalkTo(spot.transform.position, 0.75f);
                 scrubbing = true;
+                SetAction(true);
                 while (spot != null && !spot.IsCleaned)
                 {
                     FaceTowards(spot.transform.position);
@@ -41,6 +47,7 @@ namespace NaSvyazi.Building
                     yield return new WaitForSeconds(0.45f / SpeedMultiplier);
                 }
                 scrubbing = false;
+                SetAction(false);
                 yield return new WaitForSeconds(0.3f);
             }
         }
@@ -48,23 +55,35 @@ namespace NaSvyazi.Building
         protected override void Update()
         {
             base.Update();
-            if (mop == null) return;
-            // Во время уборки швабра ходит из стороны в сторону.
-            swayPhase += Time.deltaTime * (scrubbing ? 12f : 0f);
-            float sway = scrubbing ? Mathf.Sin(swayPhase) * 25f : 0f;
-            mop.localRotation = Quaternion.Euler(30f, sway, 0f);
+            if (stick == null) return;
+
+            // Хват у правого бока на уровне пояса, насадка на полу впереди.
+            if (scrubbing) swayPhase += Time.deltaTime * 11f * SpeedMultiplier;
+            float sway = scrubbing ? Mathf.Sin(swayPhase) * 0.28f : 0f;
+
+            Vector3 grip = transform.TransformPoint(new Vector3(0.22f, 0.95f, 0.22f));
+            Vector3 floor = transform.TransformPoint(new Vector3(0.05f + sway, 0.03f, 0.85f));
+            Vector3 dir = (grip - floor).normalized;
+
+            // Черенок от насадки вверх, проходит через руку и чуть выступает над ней.
+            Vector3 top = floor + dir * StickLength;
+            stick.position = (floor + top) * 0.5f;
+            stick.rotation = Quaternion.FromToRotation(Vector3.up, dir);
+            stick.localScale = new Vector3(0.03f, StickLength * 0.5f, 0.03f);
+
+            head.position = floor;
+            head.rotation = Quaternion.LookRotation(transform.forward, Vector3.up);
         }
 
-        private Transform BuildMop()
+        private void BuildMop()
         {
-            GameObject root = new GameObject("Mop");
-            GameObject stick = PrimitiveProp(PrimitiveType.Cylinder, new Vector3(0.03f, 0.65f, 0.03f), new Color(0.86f, 0.18f, 0.55f));
-            stick.transform.SetParent(root.transform, false);
-            stick.transform.localPosition = new Vector3(0f, -0.2f, 0f);
-            GameObject head = PrimitiveProp(PrimitiveType.Cube, new Vector3(0.34f, 0.06f, 0.12f), new Color(0.82f, 0.82f, 0.78f));
-            head.transform.SetParent(root.transform, false);
-            head.transform.localPosition = new Vector3(0f, -0.85f, 0f);
-            return AttachProp(root, new Vector3(0.25f, 1.0f, 0.4f), new Vector3(30f, 0f, 0f));
+            stick = PrimitiveProp(PrimitiveType.Cylinder, Vector3.one, new Color(0.86f, 0.18f, 0.55f)).transform;
+            head = PrimitiveProp(PrimitiveType.Cube, new Vector3(0.36f, 0.06f, 0.13f), new Color(0.82f, 0.82f, 0.78f)).transform;
+            foreach (Transform t in new[] { stick, head })
+            {
+                t.SetParent(transform, true);
+                Destroy(t.GetComponent<Collider>());
+            }
         }
     }
 }

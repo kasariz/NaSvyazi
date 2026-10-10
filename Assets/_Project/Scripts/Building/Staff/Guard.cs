@@ -19,6 +19,7 @@ namespace NaSvyazi.Building
         private const float CatchRadius = 1.4f;
 
         protected override string Title => "Охранник";
+        protected override string AnimationPrefix => "guard";
         protected override float SpeedMultiplier => 1.5f; // бегает быстрее вора
 
         private readonly HashSet<Customer> tried = new HashSet<Customer>();
@@ -52,8 +53,13 @@ namespace NaSvyazi.Building
                 if (thief != null && thief.IsEscapingThief)
                 {
                     tried.Add(thief);
-                    if (Random.value < SkillManager.GuardCatchChance) thief.Interact(null);
+                    FaceTowards(thief.transform.position);
+                    SetAction(true); // анимация задержания (если положена guard_action)
+                    yield return new WaitForSeconds(0.6f);
+                    if (thief != null && Random.value < SkillManager.GuardCatchChance) thief.Interact(null);
                     else GameEvents.Notify("Вор вырвался от охранника! Задержите его сами — E");
+                    yield return new WaitForSeconds(0.6f);
+                    SetAction(false);
                 }
             }
         }

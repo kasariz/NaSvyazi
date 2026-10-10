@@ -1,5 +1,5 @@
 using System.Collections;
-using System.Collections.Generic;
+using NaSvyazi.Audio;
 using NaSvyazi.Products;
 using NaSvyazi.Progression;
 using NaSvyazi.Store;
@@ -9,27 +9,26 @@ namespace NaSvyazi.Building
 {
     /// <summary>
     /// Выкладчик товара. Следит за полками зала: когда на секции остаётся меньше половины товара
-    /// (или она опустела), берёт этот же товар из коробки и докладывает. Коробки в зале берёт
-    /// сам, за коробками на складе или в зоне доставки уходит через дверь склада.
+    /// (или она опустела), идёт за коробкой с этим же товаром — в зал, на склад или в зону доставки
+    /// (через дверь склада, пешком), — несёт её к полке и выкладывает.
+    /// Опустевшую коробку сразу выбрасывает; если в коробке что-то осталось — относит её на свободное
+    /// место складского стеллажа (или на свободный участок пола склада).
     /// Пустые секции, которые ещё ни разу не заполнялись, не трогает — что где лежит, решает игрок.
-    /// Навык «Расторопный выкладчик»: быстрее ходит и выкладывает, уносит больше за раз.
+    /// Навык «Расторопный выкладчик»: быстрее ходит и выкладывает.
     /// </summary>
     public class Merchandiser : StaffWorker
     {
         private const float RestockThreshold = 0.5f;
+        private static readonly Vector3 BoxHalfSize = new Vector3(0.21f, 0.16f, 0.16f);
 
         protected override string Title => "Выкладчик";
+        protected override string AnimationPrefix => "merch";
         protected override float SpeedMultiplier => SkillManager.MerchandiserSpeedMultiplier;
-        private int CarryLimit => 6 + 3 * SkillManager.Rank("merch_speed");
 
-        private GameObject carryProp;
+        private ProductBox carried;
 
         protected override IEnumerator Work()
         {
-            carryProp = PrimitiveProp(PrimitiveType.Cube, new Vector3(0.38f, 0.26f, 0.3f), new Color(0.78f, 0.62f, 0.43f));
-            AttachProp(carryProp, new Vector3(0f, 1.05f, 0.35f), Vector3.zero);
-            carryProp.SetActive(false);
-
             while (true)
             {
                 if (!FindJob(out ShelfSection shelf, out ProductBox box, out ProductData product))
@@ -39,42 +38,88 @@ namespace NaSvyazi.Building
                     continue;
                 }
 
-                // За товаром: в зале — к коробке, иначе — через дверь склада.
-                if (InSalon(box.transform.position)) yield return WalkTo(box.transform.position, 0.9f);
-                else yield return TripToStorage(Vector3.Distance(StorageDoorHall, box.transform.position));
+                // 1. Дойти до коробки и взять её в руки.
+                yield return WalkTo(box.transform.position, 0.9f);
+                if (box == null || box.IsHeld || box.IsEmpty) continue;
+                FaceTowards(box.transform.position);
+                box.OnPickedUp(Hands);
+                carried = box;
+                SoundManager.Play(Sfx.Pickup, 0.3f);
+                yield return new WaitForSeconds(0.3f / SpeedMultiplier);
 
-                int carried = 0;
-                if (box != null && !box.IsHeld)
-                {
-                    int need = shelf != null ? shelf.Capacity - shelf.Count : 0;
-                    int take = Mathf.Min(need, CarryLimit);
-                    for (int i = 0; i < take; i++)
-                    {
-                        if (!box.TryTakeOne(out ProductData taken) || taken != product) break;
-                        carried++;
-                    }
-                }
-                if (carried == 0) { yield return new WaitForSeconds(0.5f); continue; }
-
-                carryProp.SetActive(true);
+                // 2. Отнести к полке и выложить.
                 if (shelf != null) yield return WalkTo(shelf.CustomerStandPoint, 0.3f);
-
-                // Выкладка по одной штуке.
-                while (carried > 0 && shelf != null && shelf.CanPlace(product))
+                while (carried != null && !carried.IsEmpty && shelf != null && shelf.CanPlace(product))
                 {
                     FaceTowards(shelf.transform.position);
-                    shelf.TryPlace(product);
-                    Audio.SoundManager.Play(Audio.Sfx.Place, 0.25f);
-                    carried--;
+                    if (!carried.TryTakeOne(out ProductData item)) break;
+                    shelf.TryPlace(item);
+                    SoundManager.Play(Sfx.Place, 0.25f);
                     yield return new WaitForSeconds(0.45f / SpeedMultiplier);
                 }
 
-                // Остаток (игрок успел заполнить полку) — на другую секцию с тем же товаром или обратно в коробку.
-                if (carried > 0) carried = PlaceElsewhere(product, carried);
-                if (carried > 0) carried = ReturnToBox(product, carried);
-                carryProp.SetActive(false);
+                // 3. Пустую коробку — сразу в утиль, непустую — на склад.
+                if (carried != null && carried.IsEmpty)
+                {
+                    Destroy(carried.gameObject);
+                    carried = null;
+                }
+                else if (carried != null)
+                {
+                    yield return StoreBox();
+                }
                 yield return new WaitForSeconds(0.3f);
             }
+        }
+
+        /// <summary>Отнести коробку на свободное место стеллажа склада, иначе — на свободный участок пола склада.</summary>
+        private IEnumerator StoreBox()
+        {
+            StorageRack rack = FreeRack();
+            if (rack != null)
+            {
+                yield return WalkTo(rack.transform.position, 1.1f);
+                if (carried != null && rack.FreeSlots > 0 && rack.TryStore(carried))
+                {
+                    SoundManager.Play(Sfx.Pickup, 0.3f);
+                    carried = null;
+                    yield break;
+                }
+            }
+
+            Vector3 spot = FreeFloorSpot();
+            yield return WalkTo(spot, 0.8f);
+            if (carried == null) yield break;
+            carried.transform.SetParent(null, true);
+            carried.transform.SetPositionAndRotation(spot + Vector3.up * (BoxHalfSize.y + 0.02f), Quaternion.Euler(0f, transform.eulerAngles.y, 0f));
+            carried.OnDropped(Vector3.zero);
+            SoundManager.Play(Sfx.Pickup, 0.3f);
+            carried = null;
+        }
+
+        private static StorageRack FreeRack()
+        {
+            foreach (StorageRack r in StorageRack.All)
+                if (r != null && r.isActiveAndEnabled && r.GetComponent<HandCart>() == null &&
+                    InStorage(r.transform.position) && r.FreeSlots > 0)
+                    return r;
+            return null;
+        }
+
+        /// <summary>Свободный участок пола в открытой части склада (сетка 0,6 м).</summary>
+        private static Vector3 FreeFloorSpot()
+        {
+            int stage = ExpansionManager.Instance != null ? ExpansionManager.Instance.StorageStage : 0;
+            for (int i = 0; i <= stage && i < LayoutPlan.Storage.Length; i++)
+                foreach (Rect a in LayoutPlan.Storage[i].areas)
+                    for (float z = a.yMax - 0.5f; z > a.yMin + 0.4f; z -= 0.6f)
+                        for (float x = a.xMin + 0.5f; x < a.xMax - 0.4f; x += 0.6f)
+                        {
+                            Vector3 c = new Vector3(x, BoxHalfSize.y + 0.02f, z);
+                            if (!Physics.CheckBox(c, BoxHalfSize, Quaternion.identity, ~0, QueryTriggerInteraction.Ignore))
+                                return new Vector3(x, 0f, z);
+                        }
+            return StorageDoorHall + new Vector3(-1.5f, 0f, 0f);
         }
 
         /// <summary>Самая пустая секция зала с известным товаром и ближайшая коробка с этим товаром.</summary>
@@ -91,10 +136,10 @@ namespace NaSvyazi.Building
                 if (p == null) continue;
 
                 float fill = (float)s.Count / s.Capacity;
-                if (fill >= worst && !s.IsEmpty) continue;
+                if (fill >= worst) continue;
                 if (!s.CanPlace(p)) continue;
 
-                ProductBox source = NearestBox(boxes, p, s.transform.position);
+                ProductBox source = NearestBox(boxes, p, transform.position);
                 if (source == null) continue;
 
                 worst = fill;
@@ -111,26 +156,22 @@ namespace NaSvyazi.Building
             foreach (ProductBox b in boxes)
             {
                 if (b == null || b.IsHeld || b.IsEmpty || b.Product != p) continue;
+                if (b.GetComponentInParent<HandCart>() != null) continue; // с тележки игрока не берём
                 float d = (b.transform.position - from).sqrMagnitude;
                 if (d < bestD) { bestD = d; best = b; }
             }
             return best;
         }
 
-        private static int PlaceElsewhere(ProductData p, int count)
+        /// <summary>Уволили с коробкой в руках — коробка остаётся на полу.</summary>
+        private void OnDestroy()
         {
-            foreach (ShelfSection s in ShelfSection.All)
-                while (count > 0 && s != null && s.isActiveAndEnabled && s.Product == p && s.CanPlace(p) && s.TryPlace(p))
-                    count--;
-            return count;
-        }
-
-        private static int ReturnToBox(ProductData p, int count)
-        {
-            foreach (ProductBox b in FindObjectsByType<ProductBox>(FindObjectsSortMode.None))
-                while (count > 0 && b != null && !b.IsHeld && b.CanAccept(p) && b.TryPutOne(p))
-                    count--;
-            return count;
+            if (!gameObject.scene.isLoaded) return; // выгрузка сцены — ничего не делаем
+            if (carried != null && carried.IsHeld)
+            {
+                carried.transform.SetParent(null, true);
+                carried.OnDropped(Vector3.zero);
+            }
         }
     }
 }

@@ -58,6 +58,9 @@ namespace NaSvyazi.Building
             }
         }
 
+        /// <summary>Свободное место на стеллаже (для выкладчика) или null.</summary>
+        public Transform FreeAnchor => FindFreeAnchor();
+
         private Transform FindFreeAnchor()
         {
             foreach (Transform a in anchors)

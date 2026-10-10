@@ -1,4 +1,5 @@
 using System.Collections;
+using System.Collections.Generic;
 using NaSvyazi.Customers;
 using NaSvyazi.Store;
 using TMPro;
@@ -12,6 +13,11 @@ namespace NaSvyazi.Building
     /// Внешность берётся у моделей покупателей (тот же аниматор «ожидание ↔ ходьба»),
     /// над головой — розовый бейдж с должностью. Если моделей нет — фигура из простых форм.
     /// Работа описывается корутиной Work() в наследниках.
+    ///
+    /// Свои анимации (необязательно): FBX в Resources/Animations/Staff с именами
+    /// «{роль}_idle», «{роль}_walk», «{роль}_action» (роль — merch, cleaner, guard).
+    /// Они подменяют ожидание и ходьбу у этого сотрудника; action проигрывается во время работы
+    /// (мытьё пола, задержание вора). Импорт — «На связи → Подготовить анимации персонала».
     /// </summary>
     [RequireComponent(typeof(NavMeshAgent))]
     public abstract class StaffWorker : MonoBehaviour
@@ -29,6 +35,14 @@ namespace NaSvyazi.Building
         private float baseSpeed = 2.2f;
 
         protected abstract string Title { get; }
+        /// <summary>Префикс файлов анимаций роли (merch, cleaner, guard).</summary>
+        protected abstract string AnimationPrefix { get; }
+
+        /// <summary>Точка у груди, где сотрудник держит коробку.</summary>
+        protected Transform Hands { get; private set; }
+
+        private AnimatorOverrideController overrides;
+        private AnimationClip baseIdle, idleClip, actionClip;
         /// <summary>Множитель скорости работы (навыки ветки «Персонал»).</summary>
         protected virtual float SpeedMultiplier => 1f;
 
@@ -59,6 +73,11 @@ namespace NaSvyazi.Building
         {
             agent = GetComponent<NavMeshAgent>();
             BuildVisual();
+            LoadAnimations();
+
+            Hands = new GameObject("Hands").transform;
+            Hands.SetParent(transform, false);
+            Hands.localPosition = new Vector3(0f, 0.8f, 0.38f); // на уровне пояса-груди, не у подбородка
         }
 
         protected virtual void Start() => StartCoroutine(Work());
@@ -104,24 +123,60 @@ namespace NaSvyazi.Building
             if (d.sqrMagnitude > 0.001f) transform.rotation = Quaternion.LookRotation(d);
         }
 
-        /// <summary>«Уйти на склад»: сотрудник заходит в дверь и пропадает на время пути туда и обратно.</summary>
-        protected IEnumerator TripToStorage(float distance)
-        {
-            yield return WalkTo(StorageDoorHall, 0.4f);
-            SetVisible(false);
-            yield return new WaitForSeconds((distance * 2f / Mathf.Max(0.5f, agent.speed)) + 1.2f / SpeedMultiplier);
-            SetVisible(true);
-        }
-
         protected void SetVisible(bool visible)
         {
             if (visual != null) visual.gameObject.SetActive(visible);
             if (badge != null) badge.gameObject.SetActive(visible);
         }
 
-        /// <summary>Ближе ли точка к торговому залу (иначе — склад или улица, туда ходят через дверь склада).</summary>
-        protected static bool InSalon(Vector3 p) =>
-            ExpansionManager.Instance == null || ExpansionManager.Instance.ContainsPoint(LayoutZone.Salon, p.x, p.z);
+        /// <summary>Находится ли точка на складе (с учётом открытых расширений).</summary>
+        protected static bool InStorage(Vector3 p) =>
+            ExpansionManager.Instance != null && ExpansionManager.Instance.ContainsPoint(LayoutZone.Storage, p.x, p.z);
+
+        // ----------------------------------------------------------------
+        // Анимации
+        // ----------------------------------------------------------------
+
+        private void LoadAnimations()
+        {
+            if (animator == null || animator.runtimeAnimatorController == null) return;
+            idleClip = LoadClip(AnimationPrefix + "_idle");
+            AnimationClip walk = LoadClip(AnimationPrefix + "_walk");
+            actionClip = LoadClip(AnimationPrefix + "_action");
+            if (idleClip == null && walk == null && actionClip == null) return;
+
+            overrides = new AnimatorOverrideController(animator.runtimeAnimatorController);
+            List<KeyValuePair<AnimationClip, AnimationClip>> list = new List<KeyValuePair<AnimationClip, AnimationClip>>();
+            overrides.GetOverrides(list);
+            for (int i = 0; i < list.Count; i++)
+            {
+                AnimationClip original = list[i].Key;
+                string n = original.name.ToLowerInvariant();
+                if (n.Contains("idle"))
+                {
+                    baseIdle = original;
+                    if (idleClip != null) list[i] = new KeyValuePair<AnimationClip, AnimationClip>(original, idleClip);
+                }
+                else if ((n.Contains("walk") || n.Contains("run")) && walk != null)
+                    list[i] = new KeyValuePair<AnimationClip, AnimationClip>(original, walk);
+            }
+            overrides.ApplyOverrides(list);
+            animator.runtimeAnimatorController = overrides;
+        }
+
+        /// <summary>Включить/выключить «рабочую» анимацию (подменяет ожидание, пока сотрудник стоит).</summary>
+        protected void SetAction(bool on)
+        {
+            if (overrides == null || baseIdle == null || actionClip == null) return;
+            overrides[baseIdle] = on ? actionClip : (idleClip != null ? idleClip : baseIdle);
+        }
+
+        private static AnimationClip LoadClip(string name)
+        {
+            foreach (AnimationClip c in Resources.LoadAll<AnimationClip>("Animations/Staff/" + name))
+                if (!c.name.StartsWith("__preview__")) return c;
+            return null;
+        }
 
         // ----------------------------------------------------------------
         // Внешность

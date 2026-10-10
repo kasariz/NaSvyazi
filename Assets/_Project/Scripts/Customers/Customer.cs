@@ -135,6 +135,7 @@ namespace NaSvyazi.Customers
             agent.obstacleAvoidanceType = ObstacleAvoidanceType.HighQualityObstacleAvoidance;
             agent.avoidancePriority = WalkingPriority + Random.Range(-5, 6);
             agent.radius = 0.27f;
+            agent.areaMask = Store.NavMeshBaker.CustomerAreaMask; // через дверь склада ходит только персонал
 
             // Тело покупателя — триггер: игрок проходит сквозь толпу и не застревает,
             // а прицел (E — задержать вора) по-прежнему его видит.
