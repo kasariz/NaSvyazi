@@ -20,10 +20,12 @@
 | click | `click_1…5` | Kenney Interface — click |
 | error | `error_1…4` | Kenney Interface — error_001…004 |
 | scrub | `scrub_1…5` | Kenney Interface — scratch |
-| step | `step_1…5` | Kenney Impact — footstep_carpet |
 | pickup | `pickup_1…5` | Kenney Impact — impactSoft_medium |
 | place | `place_1…5` | Kenney Impact — impactGeneric_light |
 | doorbell | `doorbell_1…5` | Kenney Impact — impactBell_heavy |
+
+Шаги — синтезированные (мягкий приглушённый шум): файлы шагов из паков звучали резко.
+Чтобы вернуть файлы, положите `step_1…N` в `Resources/Sounds`.
 
 Остальные звуки паков лежат в `Assets/_Project/Art/Audio/Library/` — они не попадают в сборку.
 Чтобы заменить звук, переименуйте файл из библиотеки по ключу и переложите в `Resources/Sounds`.
