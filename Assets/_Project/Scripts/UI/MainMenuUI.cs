@@ -19,14 +19,19 @@ namespace NaSvyazi.UI
 
         private void Start()
         {
-            // В редакторе сцены меню и салона могут быть открыты одновременно (обе видны в Hierarchy).
-            // Тогда при запуске работают обе и меню рисуется поверх игры — меню выгружаем, игра идёт.
-            if (FindAnyObjectByType<Store.DayManager>() != null)
+            Store.DayManager day = FindAnyObjectByType<Store.DayManager>();
+            if (day != null && day.gameObject.scene != gameObject.scene)
             {
-                Debug.LogWarning("[На связи] Открыты обе сцены — MainMenu и Salon. Меню выгружено. " +
-                                 "Чтобы начать с меню, в Hierarchy нажмите ⋮ у сцены Salon → Remove Scene.");
+                // В редакторе открыты обе сцены (MainMenu и Salon) — меню выгружаем, игра идёт.
+                Debug.LogWarning("[На связи] Открыты обе сцены — MainMenu и Salon. Меню выгружено.");
                 SceneManager.UnloadSceneAsync(gameObject.scene);
                 return;
+            }
+            if (day != null)
+            {
+                // В самой сцене меню оказались объекты салона (сцену перезаписали).
+                Debug.LogError("[На связи] В сцене MainMenu лежат объекты салона. " +
+                               "Выполните «На связи → Пересоздать сцену главного меню».");
             }
 
             Time.timeScale = 1f;

@@ -244,6 +244,35 @@ namespace NaSvyazi.EditorTools
                 EditorSceneManager.OpenScene(MainMenuScenePath);
         }
 
+        private const string SalonScenePath = "Assets/Scenes/Salon.unity";
+
+        /// <summary>
+        /// Сцена главного меню создаётся заново: пустая сцена с камерой, меню, звуком и EventSystem.
+        /// Нужна, если в MainMenu случайно оказались объекты салона (например, после «Save As»).
+        /// </summary>
+        [MenuItem("На связи/Пересоздать сцену главного меню", priority = 14)]
+        private static void RecreateMainMenuScene()
+        {
+            if (!EditorSceneManager.SaveCurrentModifiedScenesIfUserWantsTo()) return;
+
+            string current = SceneManager.GetActiveScene().path;
+            string returnTo = current != MainMenuScenePath && !string.IsNullOrEmpty(current) ? current : SalonScenePath;
+
+            if (System.IO.File.Exists(MainMenuScenePath)) AssetDatabase.DeleteAsset(MainMenuScenePath);
+            CreateMainMenuScene();
+
+            List<EditorBuildSettingsScene> scenes = new List<EditorBuildSettingsScene>
+            {
+                new EditorBuildSettingsScene(MainMenuScenePath, true)
+            };
+            if (System.IO.File.Exists(SalonScenePath)) scenes.Add(new EditorBuildSettingsScene(SalonScenePath, true));
+            EditorBuildSettings.scenes = scenes.ToArray();
+
+            if (System.IO.File.Exists(returnTo)) EditorSceneManager.OpenScene(returnTo);
+            Debug.Log("[На связи] Сцена главного меню пересоздана: только меню, камера и звук. " +
+                      "Порядок сцен в сборке: MainMenu → Salon.");
+        }
+
         private static void CreateMainMenuScene()
         {
             if (System.IO.File.Exists(MainMenuScenePath)) return;
