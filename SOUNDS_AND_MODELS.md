@@ -20,7 +20,7 @@
 | click | `click_1…5` | Kenney Interface — click |
 | error | `error_1…4` | Kenney Interface — error_001…004 |
 | scrub | `scrub_1…5` | Kenney Interface — scratch |
-| step | `step_1…5` | Kenney Impact — footstep_wood |
+| step | `step_1…5` | Kenney Impact — footstep_carpet |
 | pickup | `pickup_1…5` | Kenney Impact — impactSoft_medium |
 | place | `place_1…5` | Kenney Impact — impactGeneric_light |
 | doorbell | `doorbell_1…5` | Kenney Impact — impactBell_heavy |

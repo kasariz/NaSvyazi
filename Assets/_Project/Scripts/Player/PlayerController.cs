@@ -118,8 +118,11 @@ namespace NaSvyazi.Player
             // Звук шагов: по пройденному расстоянию, только на земле.
             if (controller.isGrounded && input.sqrMagnitude > 0.01f)
             {
+                // Длина шага растёт со скоростью: на бегу (Shift) шаги реже, а не «барабанная дробь».
+                float stride = stepDistance * Mathf.Lerp(1.3f, 2.4f,
+                    Mathf.InverseLerp(walkSpeed, sprintSpeed * 1.3f, speed));
                 stepProgress += speed * Time.deltaTime;
-                if (stepProgress >= stepDistance)
+                if (stepProgress >= stride)
                 {
                     stepProgress = 0f;
                     SoundManager.PlayStep();
