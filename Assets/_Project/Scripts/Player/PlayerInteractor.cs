@@ -60,6 +60,15 @@ namespace NaSvyazi.Player
                 return;
             }
 
+            // Во время расстановки мебели обычные действия отключены.
+            if (Building.FurniturePlacer.IsPlacing)
+            {
+                Current = null;
+                CurrentAction = null;
+                if (interactionUI != null) interactionUI.Show(Building.FurniturePlacer.Instance.Prompt);
+                return;
+            }
+
             FindTarget();
 
             if (GameInput.InteractPressed && Current != null && Current.CanInteract(this))

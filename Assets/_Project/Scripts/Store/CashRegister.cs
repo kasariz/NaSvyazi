@@ -129,6 +129,39 @@ namespace NaSvyazi.Store
             }
         }
 
+        // --- Автоматическая работа (нанятый кассир) ---
+
+        /// <summary>Отсканировать следующий товар на прилавке.</summary>
+        public void ScanNextAuto()
+        {
+            if (State == RegisterState.Scanning && items.Count > 0) Scan(items[0]);
+        }
+
+        /// <summary>Принять оплату: картой или наличными с точной сдачей.</summary>
+        public void AutoAcceptPayment()
+        {
+            if (State != RegisterState.AwaitingPayment || current == null) return;
+
+            if (current.PaysByCard) StoreStats.CardPayments++;
+            else StoreStats.CashPayments++;
+            FinishSale(scannedTotal, "Спасибо!");
+        }
+
+        /// <summary>Подобрать тариф: с вероятностью accuracy — лучший, иначе случайный.</summary>
+        public void AutoConsult(float accuracy)
+        {
+            if (State != RegisterState.Consulting || current == null || tariffCatalog == null) return;
+
+            TariffData best = tariffCatalog.BestFor(current.Need);
+            TariffData chosen = best;
+            if (best == null || Random.value > accuracy)
+            {
+                List<TariffData> all = tariffCatalog.tariffs.FindAll(t => t != null);
+                if (all.Count > 0) chosen = all[Random.Range(0, all.Count)];
+            }
+            OnTariffChosen(chosen);
+        }
+
         // --- IInteractable (E): приём оплаты или консультация ---
 
         public string GetPrompt(PlayerInteractor interactor)
@@ -197,6 +230,8 @@ namespace NaSvyazi.Store
             StoreStats.CustomersServed++;
             StoreStats.ItemsSold += current.ItemCount;
             ReputationManager.Add(1, "покупатель обслужен");
+            LevelManager.AddXp(1 + current.ItemCount, "продажа");
+            GameEvents.RaiseSaleCompleted();
 
             current.CompletePurchase(phrase);
             ResetRegister();
@@ -213,6 +248,8 @@ namespace NaSvyazi.Store
                 case ConsultationResult.Best:
                     StoreStats.ConsultationsBest++;
                     ReputationManager.Add(3, "точно подобран тариф");
+                    LevelManager.AddXp(6, "точная консультация");
+                    GameEvents.RaiseSaleCompleted();
                     Earn(chosen.monthlyFee, "Подключение тарифа");
                     SoundManager.Play(Sfx.Purchase);
                     GameEvents.Notify($"Отличный выбор! Клиент подключил «{chosen.displayName}»");
@@ -222,6 +259,8 @@ namespace NaSvyazi.Store
                 case ConsultationResult.Acceptable:
                     StoreStats.ConsultationsAcceptable++;
                     ReputationManager.Add(-1, "клиенту подобран тариф дороже нужного");
+                    LevelManager.AddXp(2, "консультация");
+                    GameEvents.RaiseSaleCompleted();
                     Earn(chosen.monthlyFee, "Подключение тарифа");
                     TariffData best = tariffCatalog.BestFor(current.Need);
                     GameEvents.Notify(best != null

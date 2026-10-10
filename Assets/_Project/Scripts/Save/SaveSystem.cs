@@ -2,10 +2,12 @@ using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Text;
+using NaSvyazi.Building;
 using NaSvyazi.Core;
 using NaSvyazi.Economy;
 using NaSvyazi.Products;
 using NaSvyazi.Store;
+using NaSvyazi.UI;
 using UnityEngine;
 
 namespace NaSvyazi.Save
@@ -22,6 +24,7 @@ namespace NaSvyazi.Save
 
         [SerializeField] private ProductCatalog catalog;
         [SerializeField] private ProductBox boxPrefab;
+        [SerializeField] private FurnitureCatalog furnitureCatalog;
 
         [Tooltip("Загружать сохранение при запуске сцены")]
         [SerializeField] private bool loadOnStart = true;
@@ -52,6 +55,25 @@ namespace NaSvyazi.Save
             if (DayManager.Instance != null) data.day = DayManager.Instance.Day;
             if (EconomyManager.Instance != null) data.balance = EconomyManager.Instance.Balance;
             if (ReputationManager.Instance != null) data.reputation = ReputationManager.Instance.Value;
+            if (LevelManager.Instance != null)
+            {
+                data.level = LevelManager.Instance.Level;
+                data.xp = LevelManager.Instance.Xp;
+            }
+            if (TutorialManager.Instance != null) data.tutorialDone = TutorialManager.Instance.Completed;
+            if (ExpansionManager.Instance != null) data.expansionPurchased = ExpansionManager.Instance.IsPurchased;
+            if (StaffManager.Instance != null) data.cashierHired = StaffManager.Instance.CashierHired;
+
+            foreach (PlacedFurniture f in FindObjectsByType<PlacedFurniture>(FindObjectsSortMode.None))
+            {
+                data.furniture.Add(new FurnitureEntry
+                {
+                    furnitureId = f.FurnitureId,
+                    instanceId = f.InstanceId,
+                    position = f.transform.position,
+                    rotation = f.transform.rotation
+                });
+            }
 
             if (PriceManager.Instance != null)
                 foreach (KeyValuePair<ProductData, int> pair in PriceManager.Instance.CustomPrices)
@@ -66,7 +88,7 @@ namespace NaSvyazi.Save
                 if (section.IsEmpty) continue;
                 data.shelves.Add(new ShelfEntry
                 {
-                    sectionPath = GetPath(section.transform),
+                    sectionPath = GetSectionKey(section),
                     productId = section.Product.id,
                     count = section.Count
                 });
@@ -115,6 +137,12 @@ namespace NaSvyazi.Save
 
             if (EconomyManager.Instance != null) EconomyManager.Instance.SetBalance(data.balance);
             if (ReputationManager.Instance != null) ReputationManager.Instance.SetValue(data.reputation);
+            if (LevelManager.Instance != null) LevelManager.Instance.SetState(data.level, data.xp);
+            if (TutorialManager.Instance != null) TutorialManager.Instance.SetCompleted(data.tutorialDone || data.day > 1);
+            if (ExpansionManager.Instance != null) ExpansionManager.Instance.SetPurchased(data.expansionPurchased);
+            if (StaffManager.Instance != null) StaffManager.Instance.SetCashierHired(data.cashierHired);
+
+            RestoreFurniture(data.furniture);
 
             if (UnlockManager.Instance != null)
             {
@@ -139,6 +167,34 @@ namespace NaSvyazi.Save
             GameEvents.Notify($"Загружено сохранение: день {data.day}");
         }
 
+        /// <summary>
+        /// Мебель из сохранения: стоящая в сцене заменяется сохранённой.
+        /// Старые сохранения без списка мебели оставляют сцену как есть.
+        /// </summary>
+        private void RestoreFurniture(List<FurnitureEntry> entries)
+        {
+            if (entries == null || entries.Count == 0 || furnitureCatalog == null) return;
+
+            foreach (PlacedFurniture f in FindObjectsByType<PlacedFurniture>(FindObjectsSortMode.None))
+            {
+                f.gameObject.SetActive(false); // сразу убирает полки из списка ShelfSection.All
+                Destroy(f.gameObject);
+            }
+
+            foreach (FurnitureEntry e in entries)
+            {
+                FurnitureData data = furnitureCatalog.Find(e.furnitureId);
+                if (data == null || data.prefab == null) continue;
+
+                GameObject go = Instantiate(data.prefab, e.position, e.rotation);
+                go.name = data.prefab.name;
+                PlacedFurniture placed = go.GetComponent<PlacedFurniture>();
+                if (placed != null) placed.SetInstanceId(e.instanceId);
+            }
+
+            GameEvents.RaiseLayoutChanged();
+        }
+
         private void RestoreShelves(List<ShelfEntry> entries)
         {
             Dictionary<string, ShelfEntry> byPath = new Dictionary<string, ShelfEntry>();
@@ -146,7 +202,9 @@ namespace NaSvyazi.Save
 
             foreach (ShelfSection section in new List<ShelfSection>(ShelfSection.All))
             {
-                if (byPath.TryGetValue(GetPath(section.transform), out ShelfEntry entry))
+                // Новый формат ключа — «номер мебели/секция», старый — путь в иерархии.
+                if (byPath.TryGetValue(GetSectionKey(section), out ShelfEntry entry)
+                    || byPath.TryGetValue(GetPath(section.transform), out entry))
                 {
                     ProductData product = FindProduct(entry.productId);
                     if (product != null) section.Restore(product, entry.count);
@@ -178,6 +236,13 @@ namespace NaSvyazi.Save
         {
             if (catalog == null || string.IsNullOrEmpty(id)) return null;
             return catalog.products.Find(p => p != null && p.id == id);
+        }
+
+        /// <summary>Ключ полки: номер экземпляра мебели и имя секции.</summary>
+        private static string GetSectionKey(ShelfSection section)
+        {
+            PlacedFurniture furniture = section.GetComponentInParent<PlacedFurniture>();
+            return furniture != null ? $"{furniture.InstanceId}/{section.name}" : GetPath(section.transform);
         }
 
         /// <summary>Путь объекта в иерархии, например «Shelf/Section_1A».</summary>
@@ -221,14 +286,29 @@ namespace NaSvyazi.Save
     [Serializable]
     public class SaveData
     {
-        public int version = 1;
+        public int version = 2;
         public int day = 1;
         public int balance;
         public int reputation = 50;
+        public int level = 1;
+        public int xp;
+        public bool tutorialDone;
+        public bool expansionPurchased;
+        public bool cashierHired;
+        public List<FurnitureEntry> furniture = new List<FurnitureEntry>();
         public List<PriceEntry> prices = new List<PriceEntry>();
         public List<string> unlocked = new List<string>();
         public List<ShelfEntry> shelves = new List<ShelfEntry>();
         public List<BoxEntry> boxes = new List<BoxEntry>();
+    }
+
+    [Serializable]
+    public class FurnitureEntry
+    {
+        public string furnitureId;
+        public string instanceId;
+        public Vector3 position;
+        public Quaternion rotation;
     }
 
     [Serializable]

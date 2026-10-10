@@ -42,6 +42,8 @@ namespace NaSvyazi.UI
             f.AppendLine($"Выручка:  {EconomyManager.Format(report.income)}");
             f.AppendLine($"Расходы:  {EconomyManager.Format(report.expenses)}");
             f.AppendLine($"   в т. ч. аренда:  {EconomyManager.Format(report.rent)}");
+            if (report.wages > 0)
+                f.AppendLine($"   зарплата персонала:  {EconomyManager.Format(report.wages)}");
             if (report.changeLoss > 0)
                 f.AppendLine($"   потери на сдаче:  {EconomyManager.Format(report.changeLoss)}");
             f.AppendLine();

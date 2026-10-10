@@ -1,3 +1,4 @@
+using NaSvyazi.Core;
 using Unity.AI.Navigation;
 using UnityEngine;
 
@@ -12,10 +13,21 @@ namespace NaSvyazi.Store
     [DefaultExecutionOrder(-100)]
     public class NavMeshBaker : MonoBehaviour
     {
+        private NavMeshSurface surface;
+
         private void Awake()
         {
-            NavMeshSurface surface = GetComponent<NavMeshSurface>();
+            surface = GetComponent<NavMeshSurface>();
             surface.BuildNavMesh();
+        }
+
+        private void OnEnable() => GameEvents.LayoutChanged += Rebuild;
+        private void OnDisable() => GameEvents.LayoutChanged -= Rebuild;
+
+        /// <summary>Перестроить сетку после перестановки мебели или расширения зала.</summary>
+        public void Rebuild()
+        {
+            if (surface != null) surface.BuildNavMesh();
         }
     }
 }

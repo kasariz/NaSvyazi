@@ -1,6 +1,7 @@
 using System.Collections.Generic;
 using System.IO;
 using NaSvyazi.Audio;
+using NaSvyazi.Building;
 using NaSvyazi.Customers;
 using NaSvyazi.Economy;
 using NaSvyazi.Interaction;
@@ -586,7 +587,17 @@ namespace NaSvyazi.EditorTools
             }
 
             Align("Wall_N", new Vector3(0f, 1.5f, 10f), new Vector3(20f, 3f, 0.2f));
-            Align("Wall_E", new Vector3(10f, 1.5f, 0f), new Vector3(0.2f, 3f, 20f));
+            if (FindIncludingInactive("Wall_E_Gate") != null)
+            {
+                // Восточная стена разделена под проём во второй зал.
+                Align("Wall_E", new Vector3(10f, 1.5f, -3.75f), new Vector3(0.2f, 3f, 12.5f));
+                Align("Wall_E_Gate", new Vector3(10f, 1.5f, 4.5f), new Vector3(0.2f, 3f, 4f));
+                Align("Wall_E2", new Vector3(10f, 1.5f, 8.25f), new Vector3(0.2f, 3f, 3.5f));
+            }
+            else
+            {
+                Align("Wall_E", new Vector3(10f, 1.5f, 0f), new Vector3(0.2f, 3f, 20f));
+            }
             Align("Wall_W", new Vector3(-10f, 1.5f, 0f), new Vector3(0.2f, 3f, 20f));
 
             // Южная стена с дверным проёмом x ∈ [−7; −5].
@@ -828,12 +839,17 @@ namespace NaSvyazi.EditorTools
         // Стеллаж: каркас + 4 полки × 2 секции
         // ----------------------------------------------------------------
 
-        private static GameObject BuildShelf(Vector3 position, Quaternion rotation)
-        {
-            const float width = 1.8f, depth = 0.45f, height = 1.9f, thickness = 0.03f;
-            float[] boardHeights = { 0.08f, 0.53f, 0.98f, 1.43f };
+        private static GameObject BuildShelf(Vector3 position, Quaternion rotation) =>
+            BuildShelf(position, rotation, 1.9f, new[] { 0.08f, 0.53f, 0.98f, 1.43f }, "M_Shelf",
+                new Color(0.88f, 0.88f, 0.9f));
 
-            Material frame = GetMaterial("M_Shelf", new Color(0.88f, 0.88f, 0.9f));
+        /// <summary>Стеллаж заданной высоты с полками на указанных высотах (по 2 секции на полку).</summary>
+        private static GameObject BuildShelf(Vector3 position, Quaternion rotation, float height, float[] boardHeights,
+            string materialName, Color color)
+        {
+            const float width = 1.8f, depth = 0.45f, thickness = 0.03f;
+
+            Material frame = GetMaterial(materialName, color);
 
             GameObject root = new GameObject("Shelf");
             root.transform.SetPositionAndRotation(position, rotation);
@@ -1139,6 +1155,273 @@ namespace NaSvyazi.EditorTools
             label.text = "КАССА";
 
             return root.AddComponent<CashRegister>();
+        }
+
+        // ----------------------------------------------------------------
+        // Итерация 8: обучение, уровни, мебель, расширение, кассир
+        // ----------------------------------------------------------------
+
+        private const string FurnitureFolder = PrefabsFolder + "/Furniture";
+        private const string FurnitureDataFolder = "Assets/_Project/Data/Furniture";
+
+        [MenuItem("На связи/Подготовить сцену (итерация 8)", priority = 6)]
+        private static void PrepareIteration8()
+        {
+            GameObject systems = GameObject.Find("GameSystems");
+            CashRegister register = Object.FindAnyObjectByType<CashRegister>();
+            if (systems == null || register == null || Object.FindAnyObjectByType<DayManager>() == null)
+            {
+                Debug.LogError("[На связи] Сначала выполните итерации 3–7.");
+                return;
+            }
+
+            FurnitureCatalog furniture = CreateFurnitureCatalog();
+            ReplaceSceneShelf(furniture);
+            ExpansionParts expansion = CreateExpansionHall();
+            Cashier cashier = CreateCashier(register);
+
+            GetOrAdd<LevelManager>(systems);
+            GetOrAdd<TutorialManager>(systems);
+            GetOrAdd<FurniturePlacer>(systems);
+            ExpansionManager expansionManager = GetOrAdd<ExpansionManager>(systems);
+            StaffManager staff = GetOrAdd<StaffManager>(systems);
+
+            SetReference(expansionManager, "hallRoot", expansion.hall);
+            SetReference(expansionManager, "gateWall", expansion.gate);
+            SetReference(staff, "cashier", cashier);
+
+            OrderUI order = Object.FindAnyObjectByType<OrderUI>();
+            if (order != null) SetReference(order, "furnitureCatalog", furniture);
+            Save.SaveSystem save = Object.FindAnyObjectByType<Save.SaveSystem>();
+            if (save != null) SetReference(save, "furnitureCatalog", furniture);
+
+            Selection.activeGameObject = systems;
+            MarkSceneDirty();
+            Debug.Log("[На связи] Итерация 8: обучение, уровни, мебель, второй зал, кассир. Сохраните сцену (Ctrl+S).");
+        }
+
+        private static FurnitureCatalog CreateFurnitureCatalog()
+        {
+            EnsureFolder(FurnitureFolder);
+            EnsureFolder(FurnitureDataFolder);
+
+            GameObject tall = CreateShelfPrefab("Shelf_Tall", "shelf_tall", 1.9f,
+                new[] { 0.08f, 0.53f, 0.98f, 1.43f }, "M_Shelf", new Color(0.88f, 0.88f, 0.9f));
+            GameObject low = CreateShelfPrefab("Shelf_Low", "shelf_low", 1.0f,
+                new[] { 0.08f, 0.53f }, "M_ShelfLow", new Color(0.32f, 0.33f, 0.37f));
+
+            List<FurnitureData> items = new List<FurnitureData>
+            {
+                CreateFurnitureData("shelf_tall", "Стеллаж высокий",
+                    "4 полки, 8 секций под товар. Основной стеллаж салона.", 2500, 1, tall),
+                CreateFurnitureData("shelf_low", "Стеллаж низкий",
+                    "2 полки, 4 секции. Удобен у прилавка и в центре зала: не закрывает обзор.", 1500, 1, low),
+            };
+
+            string path = "Assets/_Project/Data/FurnitureCatalog.asset";
+            FurnitureCatalog catalog = AssetDatabase.LoadAssetAtPath<FurnitureCatalog>(path);
+            if (catalog == null)
+            {
+                catalog = ScriptableObject.CreateInstance<FurnitureCatalog>();
+                AssetDatabase.CreateAsset(catalog, path);
+            }
+            catalog.items = items;
+            EditorUtility.SetDirty(catalog);
+            AssetDatabase.SaveAssets();
+            return catalog;
+        }
+
+        private static GameObject CreateShelfPrefab(string name, string id, float height, float[] boards,
+            string material, Color color)
+        {
+            string path = $"{FurnitureFolder}/{name}.prefab";
+            GameObject existing = AssetDatabase.LoadAssetAtPath<GameObject>(path);
+            if (existing != null) return existing;
+
+            GameObject root = BuildShelf(Vector3.zero, Quaternion.identity, height, boards, material, color);
+            root.name = name;
+
+            PlacedFurniture placed = root.AddComponent<PlacedFurniture>();
+            SerializedObject so = new SerializedObject(placed);
+            so.FindProperty("furnitureId").stringValue = id;
+            so.FindProperty("instanceId").stringValue = "";
+            so.FindProperty("footprint").vector3Value = new Vector3(1.8f, height, 0.45f);
+            so.ApplyModifiedPropertiesWithoutUndo();
+
+            GameObject prefab = PrefabUtility.SaveAsPrefabAsset(root, path);
+            Object.DestroyImmediate(root);
+            return prefab;
+        }
+
+        private static FurnitureData CreateFurnitureData(string id, string name, string description, int price,
+            int minLevel, GameObject prefab)
+        {
+            string path = $"{FurnitureDataFolder}/Furniture_{id}.asset";
+            FurnitureData data = AssetDatabase.LoadAssetAtPath<FurnitureData>(path);
+            if (data == null)
+            {
+                data = ScriptableObject.CreateInstance<FurnitureData>();
+                AssetDatabase.CreateAsset(data, path);
+            }
+            data.id = id;
+            data.displayName = name;
+            data.description = description;
+            data.price = price;
+            data.minLevel = minLevel;
+            data.prefab = prefab;
+            EditorUtility.SetDirty(data);
+            return data;
+        }
+
+        /// <summary>Стеллаж, собранный в сцене вручную, заменяется экземпляром префаба (для сохранения и перестановки).</summary>
+        private static void ReplaceSceneShelf(FurnitureCatalog catalog)
+        {
+            GameObject old = GameObject.Find("Shelf");
+            if (old == null || old.GetComponent<PlacedFurniture>() != null) return;
+
+            FurnitureData tall = catalog.Find("shelf_tall");
+            if (tall == null || tall.prefab == null) return;
+
+            Vector3 position = old.transform.position;
+            Quaternion rotation = old.transform.rotation;
+            Undo.DestroyObjectImmediate(old);
+
+            GameObject instance = (GameObject)PrefabUtility.InstantiatePrefab(tall.prefab);
+            instance.name = "Shelf"; // имя сохраняется — старые сохранения найдут свои полки
+            instance.transform.SetPositionAndRotation(position, rotation);
+            Undo.RegisterCreatedObjectUndo(instance, "Стеллаж");
+
+            SerializedObject so = new SerializedObject(instance.GetComponent<PlacedFurniture>());
+            so.FindProperty("instanceId").stringValue = "start_shelf";
+            so.ApplyModifiedPropertiesWithoutUndo();
+        }
+
+        private struct ExpansionParts
+        {
+            public GameObject hall;
+            public GameObject gate;
+        }
+
+        /// <summary>
+        /// Второй зал за восточной стеной (x от 10 до 18) и съёмный участок стены — проём.
+        /// Восточная стена делится на три части: z от −10 до 2.5, проём 2.5…6.5, z от 6.5 до 10.
+        /// </summary>
+        private static ExpansionParts CreateExpansionHall()
+        {
+            ExpansionParts parts = new ExpansionParts();
+
+            GameObject existingHall = FindIncludingInactive("Expansion_Hall");
+            GameObject existingGate = GameObject.Find("Wall_E_Gate");
+            if (existingHall != null && existingGate != null)
+            {
+                parts.hall = existingHall;
+                parts.gate = existingGate;
+                return parts;
+            }
+
+            GameObject environment = GameObject.Find("Environment");
+            Transform envT = environment != null ? environment.transform : null;
+
+            // Делим восточную стену.
+            GameObject wall = GameObject.Find("Wall_E");
+            if (wall != null)
+            {
+                Undo.RecordObject(wall.transform, "Расширение");
+                float height = wall.transform.lossyScale.y;
+                float thickness = wall.transform.lossyScale.x;
+                wall.transform.position = new Vector3(10f, height * 0.5f, -3.75f);
+                wall.transform.localScale = new Vector3(thickness, height, 12.5f);
+
+                parts.gate = Object.Instantiate(wall, wall.transform.parent);
+                parts.gate.name = "Wall_E_Gate";
+                parts.gate.transform.position = new Vector3(10f, height * 0.5f, 4.5f);
+                parts.gate.transform.localScale = new Vector3(thickness, height, 4f);
+                Undo.RegisterCreatedObjectUndo(parts.gate, "Расширение");
+
+                GameObject north = Object.Instantiate(wall, wall.transform.parent);
+                north.name = "Wall_E2";
+                north.transform.position = new Vector3(10f, height * 0.5f, 8.25f);
+                north.transform.localScale = new Vector3(thickness, height, 3.5f);
+                Undo.RegisterCreatedObjectUndo(north, "Расширение");
+            }
+
+            // Сам зал (выключен до покупки).
+            GameObject hall = new GameObject("Expansion_Hall");
+            if (envT != null) hall.transform.SetParent(envT, true);
+            hall.transform.position = Vector3.zero;
+            Undo.RegisterCreatedObjectUndo(hall, "Расширение");
+            Transform h = hall.transform;
+
+            Material floor = AssetDatabase.LoadAssetAtPath<Material>($"{MaterialsFolder}/M_FloorTiles.mat")
+                             ?? GetMaterial("M_FloorTiles", Color.white);
+            Material wallMat = GetMaterial("M_Wall", new Color(0.93f, 0.92f, 0.9f));
+
+            WorldCube(h, "Floor_2", new Vector3(14f, -0.5f, 0f), new Vector3(8f, 1f, 20f), floor, withCollider: true);
+            WorldCube(h, "Wall_2N", new Vector3(14f, 1.5f, 10f), new Vector3(8.2f, 3f, 0.2f), wallMat, withCollider: true);
+            WorldCube(h, "Wall_2S", new Vector3(14f, 1.5f, -10f), new Vector3(8.2f, 3f, 0.2f), wallMat, withCollider: true);
+            WorldCube(h, "Wall_2E", new Vector3(18f, 1.5f, 0f), new Vector3(0.2f, 3f, 20f), wallMat, withCollider: true);
+
+            GameObject ceiling = WorldCube(h, "Ceiling_2", new Vector3(14f, 3.1f, 0f), new Vector3(8f, 0.2f, 20f),
+                GetMaterial("M_Ceiling", new Color(0.96f, 0.96f, 0.96f)), withCollider: true);
+            ceiling.GetComponent<Renderer>().shadowCastingMode = ShadowCastingMode.Off;
+
+            Material lamp = GetEmissiveMaterial("M_Lamp", new Color(1f, 0.98f, 0.92f), 2f);
+            foreach (float z in new[] { -5f, 0f, 5f })
+                WorldCube(h, "Lamp", new Vector3(14f, 2.99f, z), new Vector3(1.2f, 0.02f, 0.4f), lamp)
+                    .GetComponent<Renderer>().shadowCastingMode = ShadowCastingMode.Off;
+
+            hall.SetActive(false);
+            parts.hall = hall;
+            return parts;
+        }
+
+        /// <summary>Кассир за прилавком. Внешность — первая модель покупателя, если персонажи подключены.</summary>
+        private static Cashier CreateCashier(CashRegister register)
+        {
+            Cashier existing = Object.FindAnyObjectByType<Cashier>(FindObjectsInactive.Include);
+            if (existing != null) return existing;
+
+            GameObject root = new GameObject("Cashier");
+            root.transform.SetPositionAndRotation(new Vector3(-0.8f, 0f, 6.75f), Quaternion.Euler(0f, 180f, 0f));
+            Undo.RegisterCreatedObjectUndo(root, "Кассир");
+
+            GameObject model = null;
+            string[] variants = AssetDatabase.FindAssets("t:Prefab", new[] { PrefabsFolder + "/Customers" });
+            if (variants.Length > 0)
+            {
+                GameObject variant = AssetDatabase.LoadAssetAtPath<GameObject>(AssetDatabase.GUIDToAssetPath(variants[0]));
+                Transform source = variant != null ? variant.transform.Find("Model") : null;
+                if (source != null)
+                {
+                    model = Object.Instantiate(source.gameObject, root.transform);
+                    model.name = "Model";
+                    model.transform.localPosition = Vector3.zero;
+                    model.transform.localRotation = Quaternion.identity;
+                }
+            }
+
+            if (model == null)
+            {
+                GameObject body = GameObject.CreatePrimitive(PrimitiveType.Capsule);
+                body.name = "Body";
+                body.transform.SetParent(root.transform, false);
+                body.transform.localPosition = new Vector3(0f, 0.85f, 0f);
+                body.transform.localScale = new Vector3(0.56f, 0.85f, 0.56f);
+                Object.DestroyImmediate(body.GetComponent<Collider>());
+                body.GetComponent<Renderer>().sharedMaterial = GetMaterial("M_Staff", new Color(0.86f, 0.18f, 0.55f));
+            }
+
+            Cashier cashier = root.AddComponent<Cashier>();
+            SetReference(cashier, "register", register);
+            root.SetActive(false);
+            return cashier;
+        }
+
+        private static GameObject FindIncludingInactive(string name)
+        {
+            foreach (Transform t in Object.FindObjectsByType<Transform>(FindObjectsInactive.Include, FindObjectsSortMode.None))
+                if (t.name == name) return t.gameObject;
+            return null;
         }
 
         /// <summary>Поворот устройств на прилавке: лицевой стороной к кассиру.</summary>

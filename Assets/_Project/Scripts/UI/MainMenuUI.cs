@@ -74,8 +74,8 @@ namespace NaSvyazi.UI
 
             // Блок кнопок / настроек.
             RectTransform area = UIFactory.CreateRect("Area", canvas.transform);
-            UIFactory.Place(area, new Vector2(0f, 0f), new Vector2(0f, 0f), new Vector2(140f, 120f),
-                new Vector2(720f, 560f));
+            UIFactory.Place(area, new Vector2(0f, 0f), new Vector2(0f, 0f), new Vector2(140f, 90f),
+                new Vector2(760f, 640f));
 
             RectTransform buttons = UIFactory.CreateRect("Buttons", area);
             UIFactory.Stretch(buttons);

@@ -47,7 +47,11 @@ namespace NaSvyazi.UI
         }
 
         protected override void SetVisible(bool visible) => root.SetActive(visible);
-        protected override void OnOpened() => Refresh();
+        protected override void OnOpened()
+        {
+            Refresh();
+            Core.GameEvents.RaisePriceWindowOpened();
+        }
 
         private int CurrentPrice => PriceManager.PriceOf(product);
 

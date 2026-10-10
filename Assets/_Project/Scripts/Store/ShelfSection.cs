@@ -107,6 +107,7 @@ namespace NaSvyazi.Store
             GameObject visual = item.CreateVisual(transform);
             visual.transform.localPosition = slots[items.Count];
             visual.transform.localRotation = Quaternion.identity;
+            if (Application.isPlaying) visual.AddComponent<PopIn>();
             items.Add(visual);
 
             UpdateLabel();
@@ -173,7 +174,10 @@ namespace NaSvyazi.Store
             if (box == null || box.IsEmpty || !CanPlace(box.Product)) return;
 
             if (box.TryTakeOne(out ProductData item) && TryPlace(item))
+            {
                 SoundManager.Play(Sfx.Place, 0.6f);
+                GameEvents.RaiseItemShelved();
+            }
         }
 
         public string GetSecondaryPrompt(PlayerInteractor interactor)

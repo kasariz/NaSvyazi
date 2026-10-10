@@ -15,13 +15,13 @@ namespace NaSvyazi.Economy
         [Tooltip("Стоимость открытия (договор с поставщиком), руб.")]
         public int cost;
 
-        [Tooltip("Минимальная репутация салона")]
-        public int minReputation;
+        [Tooltip("Минимальный уровень салона")]
+        public int minLevel = 1;
     }
 
     /// <summary>
     /// Прогрессия: на старте салон торгует аксессуарами, кабелями и SIM-картами.
-    /// Наушники и смартфоны открываются за деньги при достаточной репутации.
+    /// Аудио и смартфоны открываются за деньги на определённом уровне салона.
     /// </summary>
     public class UnlockManager : MonoBehaviour
     {
@@ -32,10 +32,10 @@ namespace NaSvyazi.Economy
             ProductCategory.Accessories, ProductCategory.Cables, ProductCategory.SimCards
         };
 
-        [SerializeField] private List<CategoryUnlock> unlocks = new List<CategoryUnlock>
+        [SerializeField] private List<CategoryUnlock> categoryUnlocks = new List<CategoryUnlock>
         {
-            new CategoryUnlock { category = ProductCategory.Audio, cost = 3000, minReputation = 40 },
-            new CategoryUnlock { category = ProductCategory.Phones, cost = 10000, minReputation = 55 }
+            new CategoryUnlock { category = ProductCategory.Audio, cost = 3000, minLevel = 2 },
+            new CategoryUnlock { category = ProductCategory.Phones, cost = 10000, minLevel = 3 }
         };
 
         private readonly HashSet<ProductCategory> unlocked = new HashSet<ProductCategory>();
@@ -61,7 +61,7 @@ namespace NaSvyazi.Economy
             Instance == null || Instance.unlocked.Contains(category);
 
         public CategoryUnlock GetUnlock(ProductCategory category) =>
-            unlocks.Find(u => u.category == category);
+            categoryUnlocks.Find(u => u.category == category);
 
         public bool TryUnlock(ProductCategory category)
         {
@@ -70,10 +70,9 @@ namespace NaSvyazi.Economy
             CategoryUnlock rule = GetUnlock(category);
             if (rule == null) return false;
 
-            int reputation = ReputationManager.Instance != null ? ReputationManager.Instance.Value : 100;
-            if (reputation < rule.minReputation)
+            if (LevelManager.CurrentLevel < rule.minLevel)
             {
-                GameEvents.Notify($"Нужна репутация не ниже {rule.minReputation}");
+                GameEvents.Notify($"Нужен уровень салона {rule.minLevel}");
                 Audio.SoundManager.Play(Audio.Sfx.Error);
                 return false;
             }

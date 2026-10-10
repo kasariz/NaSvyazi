@@ -23,8 +23,11 @@ namespace NaSvyazi.Store
         [Tooltip("Сколько реальных секунд длится одна игровая минута (0.75 → день ≈ 9 минут)")]
         [SerializeField] private float realSecondsPerGameMinute = 0.75f;
 
-        [Tooltip("Аренда и коммунальные платежи за день, руб.")]
+        [Tooltip("Базовая аренда и коммунальные платежи за день, руб.")]
         [SerializeField] private int dailyRent = 800;
+
+        [Tooltip("Прибавка к аренде за каждый уровень салона выше первого, руб.")]
+        [SerializeField] private int rentPerLevel = 300;
 
         [Tooltip("Если покупатели не ушли за это время после закрытия, день завершается принудительно")]
         [SerializeField] private float closingTimeout = 120f;
@@ -37,7 +40,22 @@ namespace NaSvyazi.Store
         public int Day { get; private set; } = 1;
         public float Minutes { get; private set; }
         public DayPhase Phase { get; private set; } = DayPhase.Preparing;
-        public int DailyRent => dailyRent;
+        /// <summary>
+        /// Аренда за день: базовая + надбавка за уровень салона + доплата за второй зал.
+        /// Чем больше салон, тем дороже его содержание — растущие расходы держат игрока в тонусе.
+        /// </summary>
+        public int DailyRent
+        {
+            get
+            {
+                int level = Economy.LevelManager.Instance != null ? Economy.LevelManager.Instance.Level : 1;
+                int expansion = Building.ExpansionManager.Instance != null ? Building.ExpansionManager.Instance.ExtraRent : 0;
+                return dailyRent + rentPerLevel * (level - 1) + expansion;
+            }
+        }
+
+        /// <summary>Зарплата персонала за день.</summary>
+        public int DailyWages => Building.StaffManager.Instance != null ? Building.StaffManager.Instance.DailyWages : 0;
 
         private void Awake()
         {
@@ -110,10 +128,17 @@ namespace NaSvyazi.Store
             Phase = DayPhase.Summary;
             RaiseTime();
 
-            EconomyManager economy = EconomyManager.Instance;
-            if (economy != null) economy.Charge(dailyRent, "Аренда и коммунальные платежи");
+            int rent = DailyRent;
+            int wages = DailyWages;
 
-            DayReport report = DayReport.Collect(Day, dailyRent);
+            EconomyManager economy = EconomyManager.Instance;
+            if (economy != null)
+            {
+                economy.Charge(rent, "Аренда и коммунальные платежи");
+                if (wages > 0) economy.Charge(wages, "Зарплата персонала");
+            }
+
+            DayReport report = DayReport.Collect(Day, rent, wages);
 
             if (reportUI != null)
                 reportUI.ShowReport(report, StartNextDay, FindAnyObjectByType<PlayerController>());
@@ -162,6 +187,7 @@ namespace NaSvyazi.Store
         public int income;
         public int expenses;
         public int rent;
+        public int wages;
         public int balance;
         public int reputation;
         public int customersServed;
@@ -179,7 +205,7 @@ namespace NaSvyazi.Store
 
         public int Profit => income - expenses;
 
-        public static DayReport Collect(int day, int rent)
+        public static DayReport Collect(int day, int rent, int wages)
         {
             EconomyManager e = EconomyManager.Instance;
             return new DayReport
@@ -188,6 +214,7 @@ namespace NaSvyazi.Store
                 income = e != null ? e.DayIncome : 0,
                 expenses = e != null ? e.DayExpenses : 0,
                 rent = rent,
+                wages = wages,
                 balance = e != null ? e.Balance : 0,
                 reputation = ReputationManager.Instance != null ? ReputationManager.Instance.Value : 0,
                 customersServed = StoreStats.CustomersServed,

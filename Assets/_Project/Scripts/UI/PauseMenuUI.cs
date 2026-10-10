@@ -40,7 +40,9 @@ namespace NaSvyazi.UI
         {
             base.Update(); // Esc закрывает меню, если оно открыто
 
-            bool escapeFree = !IsAnyOpen && LastClosedFrame != Time.frameCount;
+            bool escapeFree = !IsAnyOpen && LastClosedFrame != Time.frameCount
+                              && !Building.FurniturePlacer.IsPlacing
+                              && Building.FurniturePlacer.LastCancelFrame != Time.frameCount;
             if (escapeFree && GameInput.EscapePressed)
             {
                 if (player == null) player = FindAnyObjectByType<PlayerController>();
@@ -98,7 +100,7 @@ namespace NaSvyazi.UI
 
             Image window = UIFactory.CreatePanel("Window", canvas.transform, UIFactory.PanelColor);
             UIFactory.Place(window.rectTransform, new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f),
-                Vector2.zero, new Vector2(760f, 620f));
+                Vector2.zero, new Vector2(820f, 820f));
 
             RectTransform content = UIFactory.CreateRect("Content", window.transform);
             UIFactory.Stretch(content, 40f);

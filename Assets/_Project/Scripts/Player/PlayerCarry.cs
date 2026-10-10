@@ -26,6 +26,7 @@ namespace NaSvyazi.Player
             Held = item;
             item.OnPickedUp(holdPoint);
             SoundManager.Play(Sfx.Pickup, 0.7f);
+            Core.GameEvents.RaiseBoxPickedUp();
             return true;
         }
 

@@ -75,6 +75,17 @@ namespace NaSvyazi.Economy
             GameEvents.RaiseMoneyChanged(Balance, -amount);
         }
 
+        /// <summary>Вернуть деньги за отменённую покупку (уменьшает дневные расходы).</summary>
+        public void Refund(int amount, string reason)
+        {
+            if (amount <= 0) return;
+
+            Balance += amount;
+            DayExpenses = Mathf.Max(0, DayExpenses - amount);
+            Debug.Log($"[Экономика] Возврат {amount} руб. ({reason}). Баланс: {Balance}");
+            GameEvents.RaiseMoneyChanged(Balance, amount);
+        }
+
         /// <summary>Установить баланс (при загрузке сохранения).</summary>
         public void SetBalance(int balance)
         {

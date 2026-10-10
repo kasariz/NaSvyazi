@@ -30,9 +30,13 @@ namespace NaSvyazi.Audio
         [Range(0f, 1f)] [SerializeField] private float effectsVolume = 0.7f;
         [Range(0f, 1f)] [SerializeField] private float footstepsVolume = 0.25f;
 
+        [Tooltip("Фоновая музыка (синтезируется кодом)")]
+        [SerializeField] private bool playMusic = true;
+
         private readonly Dictionary<Sfx, AudioClip> clips = new Dictionary<Sfx, AudioClip>();
         private AudioSource effects;
         private AudioSource steps;
+        private AudioSource music;
         private AudioClip stepClip;
         private System.Random noise;
 
@@ -50,6 +54,67 @@ namespace NaSvyazi.Audio
             steps.spatialBlend = 0f;
 
             GenerateClips();
+
+            if (playMusic)
+            {
+                music = gameObject.AddComponent<AudioSource>();
+                music.playOnAwake = false;
+                music.loop = true;
+                music.spatialBlend = 0f;
+                music.clip = GenerateMusic();
+                music.volume = Core.GameSettings.MusicVolume;
+                music.Play();
+            }
+        }
+
+        /// <summary>Изменить громкость музыки (из настроек).</summary>
+        public static void SetMusicVolume(float volume)
+        {
+            if (Instance != null && Instance.music != null) Instance.music.volume = volume;
+        }
+
+        /// <summary>
+        /// Спокойный эмбиент для торгового зала: четыре аккорда (Cmaj7 – Am7 – Fmaj7 – G6)
+        /// мягкими синусоидами с плавной атакой, по 4 секунды; луп длиной 16 секунд.
+        /// </summary>
+        private static AudioClip GenerateMusic()
+        {
+            const int rate = 22050;
+            const float chordLength = 4f;
+            float[][] chords =
+            {
+                new[] { 130.81f, 164.81f, 196.00f, 246.94f }, // Cmaj7
+                new[] { 110.00f, 130.81f, 164.81f, 196.00f }, // Am7
+                new[] { 87.31f, 110.00f, 130.81f, 164.81f },  // Fmaj7
+                new[] { 98.00f, 123.47f, 146.83f, 164.81f }   // G6
+            };
+
+            int perChord = Mathf.RoundToInt(chordLength * rate);
+            float[] data = new float[perChord * chords.Length];
+
+            for (int c = 0; c < chords.Length; c++)
+            {
+                for (int i = 0; i < perChord; i++)
+                {
+                    float t = (float)i / rate;
+                    // Плавная атака и затухание — аккорды перетекают друг в друга без щелчков.
+                    float env = Mathf.Clamp01(t / 0.8f) * Mathf.Clamp01((chordLength - t) / 0.9f);
+                    float sample = 0f;
+                    foreach (float f in chords[c])
+                    {
+                        float tremolo = 1f + 0.15f * Mathf.Sin(2f * Mathf.PI * 0.25f * t);
+                        sample += Mathf.Sin(2f * Mathf.PI * f * t) * tremolo
+                                  + 0.25f * Mathf.Sin(2f * Mathf.PI * f * 2f * t);
+                    }
+                    // Бас — основной тон аккорда октавой ниже.
+                    sample += 0.8f * Mathf.Sin(2f * Mathf.PI * chords[c][0] * 0.5f * t);
+                    data[c * perChord + i] = sample * env * 0.06f;
+                }
+            }
+
+            AudioClip clip = AudioClip.Create("music_ambient", data.Length, 1, rate, false);
+            clip.SetData(data, 0);
+            return clip;
         }
 
         private void OnDestroy()

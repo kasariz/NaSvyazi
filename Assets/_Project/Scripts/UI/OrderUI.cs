@@ -1,4 +1,5 @@
 using System.Collections.Generic;
+using NaSvyazi.Building;
 using NaSvyazi.Core;
 using NaSvyazi.Economy;
 using NaSvyazi.Products;
@@ -18,6 +19,7 @@ namespace NaSvyazi.UI
         [SerializeField] private ProductCatalog catalog;
         [SerializeField] private DeliveryService delivery;
         [SerializeField] private int maxBoxesPerProduct = 9;
+        [SerializeField] private FurnitureCatalog furnitureCatalog;
 
         private readonly Dictionary<ProductData, int> cart = new Dictionary<ProductData, int>();
         private readonly Dictionary<ProductData, TextMeshProUGUI> quantityTexts =
@@ -48,14 +50,14 @@ namespace NaSvyazi.UI
         {
             GameEvents.MoneyChanged += OnMoneyChanged;
             GameEvents.CategoryUnlocked += OnCategoryUnlocked;
-            GameEvents.ReputationChanged += OnReputationChanged;
+            GameEvents.LevelChanged += OnLevelChanged;
         }
 
         private void OnDisable()
         {
             GameEvents.MoneyChanged -= OnMoneyChanged;
             GameEvents.CategoryUnlocked -= OnCategoryUnlocked;
-            GameEvents.ReputationChanged -= OnReputationChanged;
+            GameEvents.LevelChanged -= OnLevelChanged;
         }
 
         private void OnCategoryUnlocked(ProductCategory category)
@@ -63,7 +65,7 @@ namespace NaSvyazi.UI
             if (IsOpen) Refresh();
         }
 
-        private void OnReputationChanged(int value)
+        private void OnLevelChanged(int level, int xp, int next)
         {
             if (IsOpen) Refresh();
         }
@@ -137,6 +139,7 @@ namespace NaSvyazi.UI
                 if (pair.Value > 0) items.Add(new DeliveryItem(pair.Key, pair.Value));
 
             delivery.ScheduleDelivery(items);
+            GameEvents.RaiseOrderPlaced();
             ClearCart();
             Close();
         }
@@ -153,13 +156,14 @@ namespace NaSvyazi.UI
             orderButton.interactable = total > 0 && total <= balance;
 
             RefreshLocks();
+            RefreshFurnitureAndDevelopment();
         }
 
         /// <summary>Закрытые категории: вместо выбора количества — кнопка открытия.</summary>
         private void RefreshLocks()
         {
             UnlockManager unlocks = UnlockManager.Instance;
-            int reputation = ReputationManager.Instance != null ? ReputationManager.Instance.Value : 100;
+            int level = LevelManager.CurrentLevel;
 
             foreach (KeyValuePair<ProductData, RowLock> pair in rowLocks)
             {
@@ -174,9 +178,9 @@ namespace NaSvyazi.UI
                     pair.Value.unlockLabel.text = "Недоступно";
                     pair.Value.unlockButton.interactable = false;
                 }
-                else if (reputation < rule.minReputation)
+                else if (level < rule.minLevel)
                 {
-                    pair.Value.unlockLabel.text = $"Репутация {rule.minReputation}+";
+                    pair.Value.unlockLabel.text = $"Уровень салона {rule.minLevel}";
                     pair.Value.unlockButton.interactable = false;
                 }
                 else
@@ -193,6 +197,134 @@ namespace NaSvyazi.UI
                 Refresh();
         }
 
+        // --- Вкладки «Мебель» и «Развитие» ---
+
+        private enum Tab { Products, Furniture, Development }
+
+        private readonly List<GameObject> tabPanels = new List<GameObject>();
+        private readonly List<Button> tabButtons = new List<Button>();
+        private Tab currentTab = Tab.Products;
+
+        private class ActionRow
+        {
+            public Button button;
+            public TextMeshProUGUI label;
+        }
+
+        private readonly Dictionary<FurnitureData, ActionRow> furnitureRows = new Dictionary<FurnitureData, ActionRow>();
+        private ActionRow expansionRow;
+        private ActionRow cashierRow;
+        private TextMeshProUGUI developmentInfo;
+
+        private void ShowTab(Tab tab)
+        {
+            currentTab = tab;
+            for (int i = 0; i < tabPanels.Count; i++)
+            {
+                tabPanels[i].SetActive(i == (int)tab);
+                tabButtons[i].GetComponent<Image>().color = i == (int)tab ? UIFactory.AccentColor : UIFactory.ButtonColor;
+            }
+            Refresh();
+        }
+
+        private void RefreshFurnitureAndDevelopment()
+        {
+            int level = LevelManager.CurrentLevel;
+
+            foreach (KeyValuePair<FurnitureData, ActionRow> pair in furnitureRows)
+            {
+                FurnitureData f = pair.Key;
+                bool levelOk = level >= f.minLevel;
+                pair.Value.label.text = levelOk ? $"Купить: {EconomyManager.Format(f.price)}" : $"Уровень салона {f.minLevel}";
+                pair.Value.button.interactable = levelOk && EconomyManager.Instance != null
+                                                 && EconomyManager.Instance.CanAfford(f.price);
+            }
+
+            ExpansionManager expansion = ExpansionManager.Instance;
+            if (expansionRow != null && expansion != null)
+            {
+                if (expansion.IsPurchased)
+                {
+                    expansionRow.label.text = "Открыт";
+                    expansionRow.button.interactable = false;
+                }
+                else if (level < expansion.MinLevel)
+                {
+                    expansionRow.label.text = $"Уровень салона {expansion.MinLevel}";
+                    expansionRow.button.interactable = false;
+                }
+                else
+                {
+                    expansionRow.label.text = $"Купить: {EconomyManager.Format(expansion.Price)}";
+                    expansionRow.button.interactable = true;
+                }
+            }
+
+            StaffManager staff = StaffManager.Instance;
+            if (cashierRow != null && staff != null)
+            {
+                if (staff.CashierHired)
+                {
+                    cashierRow.label.text = "Уволить";
+                    cashierRow.button.interactable = true;
+                }
+                else if (level < staff.CashierMinLevel)
+                {
+                    cashierRow.label.text = $"Уровень салона {staff.CashierMinLevel}";
+                    cashierRow.button.interactable = false;
+                }
+                else
+                {
+                    cashierRow.label.text = "Нанять";
+                    cashierRow.button.interactable = true;
+                }
+            }
+
+            if (developmentInfo != null)
+            {
+                LevelManager lm = LevelManager.Instance;
+                string levelText = lm == null ? "" : lm.IsMaxLevel
+                    ? $"Уровень салона: {lm.Level} (максимальный)"
+                    : $"Уровень салона: {lm.Level}   ·   опыт {lm.Xp} из {lm.XpForNextLevel}";
+                int rent = DayManager.Instance != null ? DayManager.Instance.DailyRent : 0;
+                int wages = DayManager.Instance != null ? DayManager.Instance.DailyWages : 0;
+                developmentInfo.text = $"{levelText}\nРасходы в день: аренда {EconomyManager.Format(rent)}" +
+                                       (wages > 0 ? $", зарплата {EconomyManager.Format(wages)}" : "");
+            }
+        }
+
+        private void BuyFurniture(FurnitureData data)
+        {
+            EconomyManager economy = EconomyManager.Instance;
+            if (economy == null || FurniturePlacer.Instance == null) return;
+
+            if (!economy.TrySpend(data.price, $"Покупка мебели: {data.displayName}"))
+            {
+                GameEvents.Notify("Недостаточно денег");
+                Audio.SoundManager.Play(Audio.Sfx.Error);
+                return;
+            }
+
+            Close();
+            FurniturePlacer.Instance.BeginPlaceNew(data);
+            GameEvents.Notify("Выберите место: ЛКМ — поставить, R — повернуть, ПКМ — отмена");
+        }
+
+        private void ToggleCashier()
+        {
+            StaffManager staff = StaffManager.Instance;
+            if (staff == null) return;
+            if (staff.CashierHired) staff.FireCashier();
+            else staff.TryHireCashier();
+            Refresh();
+        }
+
+        private void BuyExpansion()
+        {
+            if (ExpansionManager.Instance != null) ExpansionManager.Instance.TryPurchase();
+            Refresh();
+        }
+
         // --- Построение окна ---
 
         private void Build()
@@ -205,31 +337,71 @@ namespace NaSvyazi.UI
 
             Image window = UIFactory.CreatePanel("Window", canvas.transform, UIFactory.PanelColor);
             UIFactory.Place(window.rectTransform, new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f),
-                Vector2.zero, new Vector2(1240f, 780f));
+                Vector2.zero, new Vector2(1280f, 940f));
             UIFactory.AddVerticalLayout(window.gameObject, 10f, 32);
 
             TextMeshProUGUI title = UIFactory.CreateText("Title", window.transform,
-                "Терминал заказа  ·  поставщик «СвязьОпт»", 34f, UIFactory.TextColor);
+                "Терминал салона  ·  поставщик «СвязьОпт»", 34f, UIFactory.TextColor);
             title.fontStyle = FontStyles.Bold;
             UIFactory.SetSize(title, height: 50f);
 
             balanceText = UIFactory.CreateText("Balance", window.transform, "", 24f, UIFactory.MutedTextColor);
-            UIFactory.SetSize(balanceText, height: 36f);
+            UIFactory.SetSize(balanceText, height: 34f);
 
-            CreateRow(window.transform, null, true);
+            // Вкладки.
+            RectTransform tabs = UIFactory.CreateRect("Tabs", window.transform);
+            UIFactory.AddHorizontalLayout(tabs.gameObject, 10f, 0);
+            UIFactory.SetSize(tabs, height: 52f);
+            AddTabButton(tabs, "Товары", Tab.Products);
+            AddTabButton(tabs, "Мебель", Tab.Furniture);
+            AddTabButton(tabs, "Развитие", Tab.Development);
+            RectTransform tabsSpacer = UIFactory.CreateRect("Spacer", tabs);
+            UIFactory.SetSize(tabsSpacer, flexibleWidth: 1f);
+            UIFactory.SetSize(UIFactory.CreateButton("Close", tabs, "Закрыть (Esc)", Close,
+                UIFactory.ButtonColor), width: 210f);
+
+            RectTransform content = UIFactory.CreateRect("Content", window.transform);
+            UIFactory.SetSize(content, flexibleHeight: 1f);
+
+            BuildProductsPanel(CreateTabPanel(content, "Products"));
+            BuildFurniturePanel(CreateTabPanel(content, "Furniture"));
+            BuildDevelopmentPanel(CreateTabPanel(content, "Development"));
+
+            ShowTab(Tab.Products);
+        }
+
+        private RectTransform CreateTabPanel(RectTransform content, string name)
+        {
+            RectTransform panel = UIFactory.CreateRect(name, content);
+            UIFactory.Stretch(panel);
+            UIFactory.AddVerticalLayout(panel.gameObject, 8f, 0);
+            tabPanels.Add(panel.gameObject);
+            return panel;
+        }
+
+        private void AddTabButton(Transform parent, string label, Tab tab)
+        {
+            Button b = UIFactory.CreateButton($"Tab_{tab}", parent, label, () => ShowTab(tab), UIFactory.ButtonColor);
+            UIFactory.SetSize(b, width: 200f);
+            tabButtons.Add(b);
+        }
+
+        private void BuildProductsPanel(RectTransform panel)
+        {
+            CreateRow(panel, null, true);
 
             List<ProductData> products = catalog != null ? catalog.products : new List<ProductData>();
             foreach (ProductData product in products)
             {
                 if (product == null) continue;
                 cart[product] = 0;
-                CreateRow(window.transform, product, false);
+                CreateRow(panel, product, false);
             }
 
-            RectTransform spacer = UIFactory.CreateRect("Spacer", window.transform);
+            RectTransform spacer = UIFactory.CreateRect("Spacer", panel);
             UIFactory.SetSize(spacer, flexibleHeight: 1f);
 
-            RectTransform footer = UIFactory.CreateRect("Footer", window.transform);
+            RectTransform footer = UIFactory.CreateRect("Footer", panel);
             UIFactory.AddHorizontalLayout(footer.gameObject, 12f, 0);
             UIFactory.SetSize(footer, height: 64f);
 
@@ -238,11 +410,70 @@ namespace NaSvyazi.UI
 
             UIFactory.SetSize(UIFactory.CreateButton("Clear", footer, "Очистить", ClearCart,
                 UIFactory.ButtonColor), width: 180f);
-            UIFactory.SetSize(UIFactory.CreateButton("Close", footer, "Закрыть (Esc)", Close,
-                UIFactory.ButtonColor), width: 210f);
             orderButton = UIFactory.CreateButton("Order", footer, "Оформить заказ", PlaceOrder,
                 UIFactory.AccentColor);
             UIFactory.SetSize(orderButton, width: 260f);
+        }
+
+        private void BuildFurniturePanel(RectTransform panel)
+        {
+            TextMeshProUGUI hint = UIFactory.CreateText("Hint", panel,
+                "Купленная мебель сразу появляется перед вами: выберите место прицелом, R — повернуть, ЛКМ — поставить. " +
+                "Стоящую мебель можно переставить: наведите прицел на каркас и нажмите E.",
+                20f, UIFactory.MutedTextColor, TextAlignmentOptions.TopLeft);
+            UIFactory.SetSize(hint, height: 60f);
+
+            if (furnitureCatalog != null)
+                foreach (FurnitureData f in furnitureCatalog.items)
+                {
+                    if (f == null) continue;
+                    FurnitureData data = f;
+                    furnitureRows[f] = CreateActionRow(panel, f.displayName, f.description, () => BuyFurniture(data));
+                }
+
+            RectTransform spacer = UIFactory.CreateRect("Spacer", panel);
+            UIFactory.SetSize(spacer, flexibleHeight: 1f);
+        }
+
+        private void BuildDevelopmentPanel(RectTransform panel)
+        {
+            developmentInfo = UIFactory.CreateText("Info", panel, "", 22f, UIFactory.TextColor, TextAlignmentOptions.TopLeft);
+            UIFactory.SetSize(developmentInfo, height: 70f);
+
+            int extraRent = ExpansionManager.Instance != null ? ExpansionManager.Instance.ExtraRentIfPurchased : 1000;
+            expansionRow = CreateActionRow(panel, "Второй торговый зал",
+                $"Ещё 160 м² за восточной стеной: больше стеллажей и товаров. Аренда +{EconomyManager.Format(extraRent)} в день.",
+                BuyExpansion);
+
+            int wage = StaffManager.Instance != null ? StaffManager.Instance.CashierWage : 1500;
+            cashierRow = CreateActionRow(panel, "Кассир",
+                $"Сам сканирует товар, принимает оплату и консультирует (не всегда идеально). Зарплата {EconomyManager.Format(wage)} в день.",
+                ToggleCashier);
+
+            RectTransform spacer = UIFactory.CreateRect("Spacer", panel);
+            UIFactory.SetSize(spacer, flexibleHeight: 1f);
+        }
+
+        private ActionRow CreateActionRow(Transform parent, string name, string description, System.Action onClick)
+        {
+            Image row = UIFactory.CreatePanel($"Row_{name}", parent, UIFactory.RowColor);
+            UIFactory.AddHorizontalLayout(row.gameObject, 16f, 16);
+            UIFactory.SetSize(row, height: 84f);
+
+            TextMeshProUGUI title = UIFactory.CreateText("Name", row.transform, name, 26f, UIFactory.TextColor);
+            title.fontStyle = FontStyles.Bold;
+            UIFactory.SetSize(title, width: 300f);
+
+            TextMeshProUGUI desc = UIFactory.CreateText("Desc", row.transform, description, 19f, UIFactory.MutedTextColor);
+            desc.enableAutoSizing = true;
+            desc.fontSizeMin = 14f;
+            desc.fontSizeMax = 19f;
+            UIFactory.SetSize(desc, flexibleWidth: 1f);
+
+            Button button = UIFactory.CreateButton("Action", row.transform, "", onClick, UIFactory.AccentColor, 22f);
+            UIFactory.SetSize(button, width: 280f);
+
+            return new ActionRow { button = button, label = button.GetComponentInChildren<TextMeshProUGUI>() };
         }
 
         /// <summary>Строка таблицы: заголовок (product == null) или товар.</summary>
@@ -251,12 +482,16 @@ namespace NaSvyazi.UI
             Image row = UIFactory.CreatePanel(header ? "Header" : $"Row_{product.id}", parent,
                 header ? Color.clear : UIFactory.RowColor);
             UIFactory.AddHorizontalLayout(row.gameObject, 12f, 16);
-            UIFactory.SetSize(row, height: header ? 34f : 58f);
+            UIFactory.SetSize(row, height: header ? 30f : 46f);
+
+            // Цветной значок товара (цвет совпадает с товаром на полке).
+            Image icon = UIFactory.CreatePanel("Icon", row.transform, header ? Color.clear : product.color);
+            UIFactory.SetSize(icon, width: 22f);
 
             float size = header ? 20f : 24f;
             Color main = header ? UIFactory.MutedTextColor : UIFactory.TextColor;
 
-            AddCell(row.transform, header ? "Товар" : product.displayName, size, main, 340f);
+            AddCell(row.transform, header ? "Товар" : product.displayName, size, main, 330f);
             AddCell(row.transform, header ? "Категория" : product.category.ToDisplayName(),
                 header ? size : 20f, UIFactory.MutedTextColor, 190f);
             AddCell(row.transform, header ? "В коробке" : $"{product.unitsPerBox} шт. × {product.purchasePrice}",

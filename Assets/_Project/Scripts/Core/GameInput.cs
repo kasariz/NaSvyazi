@@ -62,6 +62,14 @@ namespace NaSvyazi.Core
         public static bool SecondaryHeld =>
             Mouse.current != null && Mouse.current.rightButton.isPressed;
 
+        /// <summary>Пропустить обучение (F1).</summary>
+        public static bool TutorialSkipPressed =>
+            Keyboard.current != null && Keyboard.current.f1Key.wasPressedThisFrame;
+
+        /// <summary>Повернуть мебель при расстановке (R).</summary>
+        public static bool RotatePressed =>
+            Keyboard.current != null && Keyboard.current.rKey.wasPressedThisFrame;
+
         /// <summary>Пауза / освобождение курсора (Esc).</summary>
         public static bool EscapePressed =>
             Keyboard.current != null && Keyboard.current.escapeKey.wasPressedThisFrame;

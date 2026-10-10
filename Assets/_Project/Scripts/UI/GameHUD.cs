@@ -20,6 +20,8 @@ namespace NaSvyazi.UI
         private TextMeshProUGUI moneyText;
         private TextMeshProUGUI reputationText;
         private TextMeshProUGUI clockText;
+        private TextMeshProUGUI levelText;
+        private Image levelBar;
         private Image notificationPanel;
         private TextMeshProUGUI notificationText;
         private float notificationTimer;
@@ -33,6 +35,7 @@ namespace NaSvyazi.UI
             GameEvents.Notification += OnNotification;
             GameEvents.ReputationChanged += OnReputationChanged;
             GameEvents.DayTimeChanged += OnDayTimeChanged;
+            GameEvents.LevelChanged += OnLevelChanged;
         }
 
         private void OnDisable()
@@ -41,6 +44,7 @@ namespace NaSvyazi.UI
             GameEvents.Notification -= OnNotification;
             GameEvents.ReputationChanged -= OnReputationChanged;
             GameEvents.DayTimeChanged -= OnDayTimeChanged;
+            GameEvents.LevelChanged -= OnLevelChanged;
         }
 
         private void Update()
@@ -72,6 +76,13 @@ namespace NaSvyazi.UI
             reputationText.text = $"Репутация: {value}/100";
             reputationText.color = value >= 60 ? UIFactory.PositiveColor
                 : value >= 35 ? UIFactory.TextColor : UIFactory.NegativeColor;
+        }
+
+        private void OnLevelChanged(int level, int xp, int next)
+        {
+            levelText.text = $"Уровень {level}   ·   {xp}/{next} опыта";
+            float fill = next > 0 ? Mathf.Clamp01((float)xp / next) : 1f;
+            levelBar.rectTransform.anchorMax = new Vector2(fill, 1f);
         }
 
         private void OnDayTimeChanged(int day, int minutes, DayPhase phase)
@@ -122,6 +133,27 @@ namespace NaSvyazi.UI
                 new Vector2(24f, -24f), new Vector2(460f, 60f));
             clockText = UIFactory.CreateText("ClockText", clockPanel.transform, "", 26f, UIFactory.TextColor);
             UIFactory.Stretch(clockText.rectTransform, 14f);
+
+            Image levelPanel = UIFactory.CreatePanel("Level", canvas.transform,
+                new Color(0.08f, 0.09f, 0.11f, 0.8f));
+            UIFactory.Place(levelPanel.rectTransform, new Vector2(1f, 1f), new Vector2(1f, 1f),
+                new Vector2(-24f, -146f), new Vector2(300f, 46f));
+
+            Image barBack = UIFactory.CreatePanel("Bar", levelPanel.transform, new Color(1f, 1f, 1f, 0.08f));
+            barBack.rectTransform.anchorMin = new Vector2(0f, 0f);
+            barBack.rectTransform.anchorMax = new Vector2(1f, 0f);
+            barBack.rectTransform.pivot = new Vector2(0.5f, 0f);
+            barBack.rectTransform.sizeDelta = new Vector2(0f, 5f);
+
+            levelBar = UIFactory.CreatePanel("Fill", barBack.transform, UIFactory.AccentColor);
+            levelBar.rectTransform.anchorMin = Vector2.zero;
+            levelBar.rectTransform.anchorMax = new Vector2(0f, 1f);
+            levelBar.rectTransform.offsetMin = Vector2.zero;
+            levelBar.rectTransform.offsetMax = Vector2.zero;
+
+            levelText = UIFactory.CreateText("LevelText", levelPanel.transform, "", 20f,
+                UIFactory.TextColor, TextAlignmentOptions.MidlineRight);
+            UIFactory.Stretch(levelText.rectTransform, 12f);
 
             notificationPanel = UIFactory.CreatePanel("Notification", canvas.transform,
                 new Color(0.08f, 0.09f, 0.11f, 0.9f));
