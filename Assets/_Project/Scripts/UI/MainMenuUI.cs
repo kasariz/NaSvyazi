@@ -97,7 +97,7 @@ namespace NaSvyazi.UI
             settingsPanel.SetActive(false);
 
             TextMeshProUGUI footer = UIFactory.CreateText("Footer", canvas.transform,
-                "Прототип игры в жанре Simulator · Unity 6", 20f, UIFactory.MutedTextColor,
+                $"Версия {Application.version}", 20f, UIFactory.MutedTextColor,
                 TextAlignmentOptions.MidlineRight);
             UIFactory.Place(footer.rectTransform, new Vector2(1f, 0f), new Vector2(1f, 0f),
                 new Vector2(-40f, 30f), new Vector2(900f, 40f));

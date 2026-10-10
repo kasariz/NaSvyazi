@@ -81,6 +81,79 @@ namespace NaSvyazi.EditorTools
                       "этапы расширения. Сохраните сцену (Ctrl+S).");
         }
 
+        [MenuItem("На связи/Подготовить сцену (итерация 12)", priority = 10)]
+        private static void PrepareIteration12()
+        {
+            if (GameObject.Find(LayoutRootName) == null)
+            {
+                Debug.LogError("[На связи] Сначала выполните «Перестроить карту (итерация 11)».");
+                return;
+            }
+
+            Selection.activeGameObject = BuildDoorSign().gameObject;
+            MarkSceneDirty();
+            Debug.Log("[На связи] Итерация 12: табличка «Открыто/Закрыто» на кронштейне у входа. Сохраните сцену (Ctrl+S).");
+        }
+
+        /// <summary>
+        /// Табличка у входа: кронштейн на стекле витрины, шнурок и двусторонняя табличка,
+        /// которая переворачивается при открытии и закрытии салона. Старая табличка удаляется.
+        /// </summary>
+        private static StoreSign BuildDoorSign()
+        {
+            foreach (StoreSign old in Object.FindObjectsByType<StoreSign>(FindObjectsInactive.Include,
+                         FindObjectsSortMode.None))
+                Undo.DestroyObjectImmediate(old.gameObject);
+
+            Material black = LMat("M_L_Black", new Color(0.06f, 0.06f, 0.07f), 0.5f);
+            Material open = LMat("M_L_SignOpen", new Color(0.13f, 0.58f, 0.32f), 0.35f);
+            Material closed = LMat("M_L_SignClosed", new Color(0.8f, 0.16f, 0.24f), 0.35f);
+
+            Vector3 p = LayoutPlan.SignPosition; // точка подвеса — конец кронштейна
+            GameObject root = new GameObject("DoorSign");
+            root.transform.position = p;
+            Undo.RegisterCreatedObjectUndo(root, "Табличка у входа");
+            Transform r = root.transform;
+
+            // Кронштейн от стекла и шнурок.
+            Box(r, "Bracket", new Vector3(p.x - 0.015f, p.y, -9.98f), new Vector3(p.x + 0.015f, p.y + 0.03f, p.z + 0.02f),
+                black, false);
+            Box(r, "Cord", new Vector3(p.x - 0.004f, p.y - 0.15f, p.z - 0.004f), new Vector3(p.x + 0.004f, p.y, p.z + 0.004f),
+                black, false);
+
+            // Вращающаяся табличка: доска с коллайдером (по ней наводится прицел) и надписи с двух сторон.
+            GameObject plateGo = new GameObject("Plate");
+            plateGo.transform.SetParent(r, false);
+            plateGo.transform.localPosition = new Vector3(0f, -0.3f, 0f);
+            Transform plate = plateGo.transform;
+
+            GameObject board = CreateCube("Board", plate, Vector3.zero, new Vector3(0.56f, 0.3f, 0.025f), closed, true);
+            CreateCube("Edge", plate, new Vector3(0f, 0.155f, 0f), new Vector3(0.58f, 0.012f, 0.03f), black, false);
+            CreateCube("Edge", plate, new Vector3(0f, -0.155f, 0f), new Vector3(0.58f, 0.012f, 0.03f), black, false);
+
+            TextMeshPro front = CreateLabel("Front", plate, new Vector3(0f, 0f, -0.0135f), Quaternion.identity,
+                new Vector2(0.5f, 0.26f), Color.white);
+            TextMeshPro back = CreateLabel("Back", plate, new Vector3(0f, 0f, 0.0135f), Quaternion.Euler(0f, 180f, 0f),
+                new Vector2(0.5f, 0.26f), Color.white);
+            foreach (TextMeshPro t in new[] { front, back })
+            {
+                t.fontStyle = FontStyles.Bold;
+                t.fontSizeMax = 1.4f;
+                t.text = "ЗАКРЫТО\n<size=42%>откроемся утром</size>";
+            }
+
+            StoreSign sign = root.AddComponent<StoreSign>();
+            SerializedObject so = new SerializedObject(sign);
+            so.FindProperty("plate").objectReferenceValue = plate;
+            so.FindProperty("signRenderer").objectReferenceValue = board.GetComponent<Renderer>();
+            so.FindProperty("openMaterial").objectReferenceValue = open;
+            so.FindProperty("closedMaterial").objectReferenceValue = closed;
+            so.FindProperty("label").objectReferenceValue = front;
+            so.FindProperty("backLabel").objectReferenceValue = back;
+            so.ApplyModifiedPropertiesWithoutUndo();
+            return sign;
+        }
+
         // ----------------------------------------------------------------
         // Удаление старой карты
         // ----------------------------------------------------------------
@@ -919,8 +992,7 @@ namespace NaSvyazi.EditorTools
             Cashier cashier = Object.FindAnyObjectByType<Cashier>(FindObjectsInactive.Include);
             if (cashier != null) Move(cashier.transform, LayoutPlan.CashierPosition, Quaternion.Euler(0f, 180f, 0f));
 
-            StoreSign sign = Object.FindAnyObjectByType<StoreSign>(FindObjectsInactive.Include);
-            if (sign != null) Move(sign.transform, LayoutPlan.SignPosition, Quaternion.identity);
+            BuildDoorSign();
 
             TrashBin trash = Object.FindAnyObjectByType<TrashBin>(FindObjectsInactive.Include);
             if (trash != null) Move(trash.transform, new Vector3(-7.35f, 0.35f, -9.35f), Quaternion.identity);

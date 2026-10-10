@@ -124,7 +124,8 @@ namespace NaSvyazi.Building
         public static readonly Vector3 TerminalPosition = new Vector3(-3.1f, 1f, -2f);
         public static readonly Vector3 QueuePosition = new Vector3(-4.8f, 0f, -3f);
         public static readonly Vector3 CashierPosition = new Vector3(-4.8f, 0f, -1.25f);
-        public static readonly Vector3 SignPosition = new Vector3(-1f, 1.6f, -0.125f);
+        /// <summary>Точка подвеса таблички «Открыто/Закрыто»: кронштейн на витрине слева от входа.</summary>
+        public static readonly Vector3 SignPosition = new Vector3(-3.3f, 1.95f, -9.64f);
         public static readonly Vector3 CustomerSpawn = new Vector3(-2f, 0f, -17f);
         public static readonly Vector3 DeliveryPoint = new Vector3(-11.25f, 0f, -12.8f);
         public static readonly Vector3 PlayerStart = new Vector3(-4f, 0f, -7f);
