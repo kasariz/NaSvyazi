@@ -115,7 +115,7 @@ namespace NaSvyazi.Store
 
             scannedTotal += item.Price;
             Destroy(item.gameObject);
-            SoundManager.Play(Sfx.Scan);
+            SoundManager.Play(Sfx.Scan, 0.3f); // писк сканера — тихо, он звучит на каждом товаре
             UpdateDisplay();
 
             if (items.Count == 0)
@@ -216,7 +216,7 @@ namespace NaSvyazi.Store
         private void FinishSale(int income, string phrase)
         {
             if (EconomyManager.Instance != null) EconomyManager.Instance.Earn(income, "Продажа");
-            SoundManager.Play(Sfx.Purchase);
+            SoundManager.Play(Sfx.Purchase, 0.5f);
 
             StoreStats.CustomersServed++;
             StoreStats.ItemsSold += current.ItemCount;
@@ -279,7 +279,7 @@ namespace NaSvyazi.Store
                     LevelManager.AddXp(6, "точная консультация");
                     GameEvents.RaiseSaleCompleted();
                     Earn(fee + simPrice, "Подключение тарифа");
-                    SoundManager.Play(Sfx.Purchase);
+                    SoundManager.Play(Sfx.Purchase, 0.5f);
                     GameEvents.Notify($"Клиент доволен на {e.satisfaction}% и подключил тариф за {EconomyManager.Format(fee)}/мес");
                     current.CompletePurchase("То, что нужно, спасибо!");
                     break;
