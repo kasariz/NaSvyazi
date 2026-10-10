@@ -1297,12 +1297,13 @@ namespace NaSvyazi.EditorTools
             };
 
             string path = "Assets/_Project/Data/FurnitureCatalog.asset";
-            FurnitureCatalog catalog = AssetDatabase.LoadAssetAtPath<FurnitureCatalog>(path);
-            if (catalog == null)
-            {
-                catalog = ScriptableObject.CreateInstance<FurnitureCatalog>();
-                AssetDatabase.CreateAsset(catalog, path);
-            }
+            // Каталог всегда создаётся заново: старый мог быть сохранён, когда класс лежал
+            // в чужом файле, и в сборке такой ассет не загружается. Ссылки на него
+            // (терминал, сохранения) команды-итерации переназначают сразу после вызова.
+            if (AssetDatabase.LoadMainAssetAtPath(path) != null || System.IO.File.Exists(path))
+                AssetDatabase.DeleteAsset(path);
+            FurnitureCatalog catalog = ScriptableObject.CreateInstance<FurnitureCatalog>();
+            AssetDatabase.CreateAsset(catalog, path);
             catalog.items = items;
             EditorUtility.SetDirty(catalog);
             AssetDatabase.SaveAssets();
