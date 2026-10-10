@@ -70,6 +70,10 @@ namespace NaSvyazi.Core
         public static bool RotatePressed =>
             Keyboard.current != null && Keyboard.current.rKey.wasPressedThisFrame;
 
+        /// <summary>Открыть / закрыть дерево навыков (K).</summary>
+        public static bool SkillsPressed =>
+            Keyboard.current != null && Keyboard.current.kKey.wasPressedThisFrame;
+
         /// <summary>Пауза / освобождение курсора (Esc).</summary>
         public static bool EscapePressed =>
             Keyboard.current != null && Keyboard.current.escapeKey.wasPressedThisFrame;

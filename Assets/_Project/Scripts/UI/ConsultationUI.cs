@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using NaSvyazi.Economy;
 using NaSvyazi.Player;
+using NaSvyazi.Progression;
 using NaSvyazi.Tariffs;
 using TMPro;
 using UnityEngine;
@@ -33,7 +34,9 @@ namespace NaSvyazi.UI
         {
             onChosen = callback;
             requestText.text = need != null ? $"«{need.request}»" : "«Подберите мне тариф»";
-            RebuildCards(catalog);
+            // Навык «Знаток тарифов» подсвечивает самый выгодный для клиента тариф.
+            TariffData hint = SkillManager.TariffExpert && catalog != null && need != null ? catalog.BestFor(need) : null;
+            RebuildCards(catalog, hint);
             Open(player);
         }
 
@@ -47,7 +50,7 @@ namespace NaSvyazi.UI
             callback?.Invoke(tariff);
         }
 
-        private void RebuildCards(TariffCatalog catalog)
+        private void RebuildCards(TariffCatalog catalog, TariffData hint)
         {
             foreach (GameObject c in cards) Destroy(c);
             cards.Clear();
@@ -56,13 +59,14 @@ namespace NaSvyazi.UI
             foreach (TariffData tariff in catalog.tariffs)
             {
                 if (tariff == null) continue;
-                cards.Add(CreateCard(tariff));
+                cards.Add(CreateCard(tariff, tariff == hint));
             }
         }
 
-        private GameObject CreateCard(TariffData tariff)
+        private GameObject CreateCard(TariffData tariff, bool recommended)
         {
-            Image card = UIFactory.CreatePanel($"Card_{tariff.id}", cardsRow, new Color(1f, 1f, 1f, 0.06f));
+            Image card = UIFactory.CreatePanel($"Card_{tariff.id}", cardsRow,
+                recommended ? new Color(0.86f, 0.18f, 0.55f, 0.28f) : new Color(1f, 1f, 1f, 0.06f));
             UIFactory.AddVerticalLayout(card.gameObject, 8f, 18);
             UIFactory.SetSize(card, width: 250f);
 
@@ -90,8 +94,8 @@ namespace NaSvyazi.UI
             FitText(desc, 12f);
             UIFactory.SetSize(desc, height: 110f, flexibleHeight: 1f);
 
-            Button offer = UIFactory.CreateButton("Offer", card.transform, "Предложить",
-                () => Choose(tariff), UIFactory.ButtonColor);
+            Button offer = UIFactory.CreateButton("Offer", card.transform, recommended ? "★ Предложить" : "Предложить",
+                () => Choose(tariff), recommended ? UIFactory.AccentColor : UIFactory.ButtonColor);
             UIFactory.SetSize(offer, height: 52f);
 
             return card.gameObject;

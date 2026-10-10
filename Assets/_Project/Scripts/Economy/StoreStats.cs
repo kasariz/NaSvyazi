@@ -40,6 +40,11 @@ namespace NaSvyazi.Economy
         /// <summary>Импульсные покупки со стойки у кассы.</summary>
         public static int ImpulseBuys;
 
+        /// <summary>Кражи: сколько товаров и на какую сумму вынесли, сколько воров задержано.</summary>
+        public static int TheftItems;
+        public static int TheftLoss;
+        public static int ThievesCaught;
+
         public static void ResetDay()
         {
             CustomersServed = 0;
@@ -56,6 +61,9 @@ namespace NaSvyazi.Economy
             ConsultationsAcceptable = 0;
             ConsultationsFailed = 0;
             ImpulseBuys = 0;
+            TheftItems = 0;
+            TheftLoss = 0;
+            ThievesCaught = 0;
         }
     }
 }

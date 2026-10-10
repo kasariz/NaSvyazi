@@ -9,8 +9,9 @@ namespace NaSvyazi.Building
         ImpulseRack, // стойка у кассы: покупатели в очереди докупают мелочь
         WaitingArea, // кресла: в очереди рядом терпение тратится вдвое медленнее
         DemoTable,   // демо-стол: покупатели охотнее берут смартфоны и аудио
-        AdStand,     // рекламный стенд: покупатели приходят чаще
-        Decor        // декор: каждое утро немного растёт репутация
+        AdStand,     // рекламный стенд: покупатели приходят чаще (на улице — сильнее)
+        Decor,       // декор: каждое утро немного растёт репутация
+        SecurityCamera // камера: замечает воров в зоне обзора и отпугивает их
     }
 
     /// <summary>
@@ -64,8 +65,29 @@ namespace NaSvyazi.Building
 
         // --- Итоговые бонусы (с ограничением, чтобы нельзя было заставить зал одной мебелью) ---
 
-        /// <summary>Множитель интервала появления покупателей: каждый стенд −15 %, учитываются до трёх.</summary>
-        public static float SpawnIntervalMultiplier => Mathf.Pow(0.85f, Mathf.Min(Count(FurnitureEffectType.AdStand), 3));
+        /// <summary>Граница улицы: всё, что южнее стены (z &lt; −10), стоит снаружи.</summary>
+        public const float StreetZ = -10f;
+
+        /// <summary>
+        /// Множитель интервала появления покупателей. Стенд на улице −15 %, в зале −7 %;
+        /// учитываются три самых сильных стенда.
+        /// </summary>
+        public static float SpawnIntervalMultiplier
+        {
+            get
+            {
+                int outside = 0, inside = 0;
+                foreach (FurnitureEffect e in All)
+                {
+                    if (e.type != FurnitureEffectType.AdStand) continue;
+                    if (e.transform.position.z < StreetZ) outside++;
+                    else inside++;
+                }
+                outside = Mathf.Min(outside, 3);
+                inside = Mathf.Min(inside, 3 - outside);
+                return Mathf.Pow(0.85f, outside) * Mathf.Pow(0.93f, inside);
+            }
+        }
 
         /// <summary>Прибавка к порогу терпимости цены для смартфонов и аудио (до двух демо-столов).</summary>
         public static float PremiumToleranceBonus => 0.08f * Mathf.Min(Count(FurnitureEffectType.DemoTable), 2);

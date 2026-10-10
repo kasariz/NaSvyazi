@@ -34,6 +34,12 @@ namespace NaSvyazi.Building
         [Tooltip("Проход от двери, который нельзя загораживать")]
         [SerializeField] private Rect doorPassage = new Rect(-7.8f, -10f, 3.6f, 2.6f);
 
+        [Header("Улица (только для рекламного стенда)")]
+        [SerializeField] private Rect street = new Rect(-9.8f, -17.8f, 19.6f, 7.5f);
+
+        [Tooltip("Дорожка от точки появления покупателей к двери — её не загораживаем")]
+        [SerializeField] private Rect streetPath = new Rect(-7.8f, -18f, 3.6f, 8.2f);
+
         private PlacedFurniture ghost;
         private bool isNew;
         private int refundPrice;
@@ -178,8 +184,12 @@ namespace NaSvyazi.Building
             bool insideHall = Contains(mainHall, footprint);
             if (!insideHall && ExpansionManager.Instance != null && ExpansionManager.Instance.IsPurchased)
                 insideHall = Contains(ExpansionManager.Instance.HallArea, footprint);
-            if (!insideHall) return false;
 
+            // Рекламный стенд можно вынести на улицу — там ему и место.
+            bool outdoorAllowed = IsOutdoorFurniture(ghost);
+            bool onStreet = outdoorAllowed && Contains(street, footprint) && !streetPath.Overlaps(footprint);
+
+            if (!insideHall && !onStreet) return false;
             if (doorPassage.Overlaps(footprint)) return false;
 
             // Пересечение с другими объектами (пол не задевается — проверка начинается на 10 см выше).
@@ -190,6 +200,12 @@ namespace NaSvyazi.Building
                 if (!c.transform.IsChildOf(ghost.transform)) return false;
 
             return true;
+        }
+
+        private static bool IsOutdoorFurniture(PlacedFurniture furniture)
+        {
+            FurnitureEffect effect = furniture.GetComponent<FurnitureEffect>();
+            return effect != null && effect.Type == FurnitureEffectType.AdStand;
         }
 
         private static bool Contains(Rect outer, Rect inner) =>

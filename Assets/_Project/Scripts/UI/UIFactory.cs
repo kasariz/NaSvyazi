@@ -160,6 +160,38 @@ namespace NaSvyazi.UI
             return le;
         }
 
+        /// <summary>
+        /// Прокручиваемый вертикальный список (колесо мыши / перетаскивание).
+        /// Возвращает контейнер, в который добавляются строки. Сам список растягивается по высоте.
+        /// </summary>
+        public static RectTransform CreateScrollList(string name, Transform parent, float spacing)
+        {
+            RectTransform viewport = CreateRect(name, parent);
+            viewport.gameObject.AddComponent<RectMask2D>();
+            Image hitArea = viewport.gameObject.AddComponent<Image>(); // ловит колесо мыши между строками
+            hitArea.color = Color.clear;
+            SetSize(viewport, flexibleHeight: 1f);
+
+            RectTransform content = CreateRect("Content", viewport);
+            content.anchorMin = new Vector2(0f, 1f);
+            content.anchorMax = new Vector2(1f, 1f);
+            content.pivot = new Vector2(0.5f, 1f);
+            content.anchoredPosition = Vector2.zero;
+            content.sizeDelta = Vector2.zero;
+            AddVerticalLayout(content.gameObject, spacing, 0);
+            ContentSizeFitter fitter = content.gameObject.AddComponent<ContentSizeFitter>();
+            fitter.verticalFit = ContentSizeFitter.FitMode.PreferredSize;
+
+            ScrollRect scroll = viewport.gameObject.AddComponent<ScrollRect>();
+            scroll.content = content;
+            scroll.viewport = viewport;
+            scroll.horizontal = false;
+            scroll.vertical = true;
+            scroll.movementType = ScrollRect.MovementType.Clamped;
+            scroll.scrollSensitivity = 40f;
+            return content;
+        }
+
         public static VerticalLayoutGroup AddVerticalLayout(GameObject go, float spacing, int padding)
         {
             VerticalLayoutGroup layout = go.AddComponent<VerticalLayoutGroup>();

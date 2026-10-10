@@ -34,6 +34,8 @@ namespace NaSvyazi.UI
         }
 
         private readonly Dictionary<ProductData, RowLock> rowLocks = new Dictionary<ProductData, RowLock>();
+        private readonly Dictionary<ProductData, TextMeshProUGUI[]> priceCells =
+            new Dictionary<ProductData, TextMeshProUGUI[]>();
 
         private GameObject root;
         private TextMeshProUGUI balanceText;
@@ -86,7 +88,7 @@ namespace NaSvyazi.UI
             {
                 int sum = 0;
                 foreach (KeyValuePair<ProductData, int> pair in cart)
-                    sum += pair.Key.purchasePrice * pair.Key.unitsPerBox * pair.Value;
+                    sum += pair.Key.BoxCost * pair.Value;
                 return sum;
             }
         }
@@ -155,6 +157,7 @@ namespace NaSvyazi.UI
             totalText.color = total > balance ? UIFactory.NegativeColor : UIFactory.TextColor;
             orderButton.interactable = total > 0 && total <= balance;
 
+            RefreshPrices();
             RefreshLocks();
             RefreshFurnitureAndDevelopment();
         }
@@ -419,7 +422,7 @@ namespace NaSvyazi.UI
         {
             TextMeshProUGUI hint = UIFactory.CreateText("Hint", panel,
                 "Купленная мебель сразу появляется перед вами: выберите место прицелом, R — повернуть, ЛКМ — поставить. " +
-                "Стоящую мебель можно переставить: наведите прицел на каркас и нажмите E.",
+                "Стоящую мебель можно переставить: наведите прицел на каркас и нажмите E. Список прокручивается колесом мыши.",
                 20f, UIFactory.MutedTextColor, TextAlignmentOptions.TopLeft);
             UIFactory.SetSize(hint, height: 50f);
 
@@ -431,15 +434,16 @@ namespace NaSvyazi.UI
                 UIFactory.SetSize(missing, height: 40f);
             }
             else
+            {
+                // Мебели много — список прокручивается колесом мыши.
+                RectTransform list = UIFactory.CreateScrollList("List", panel, 8f);
                 foreach (FurnitureData f in furnitureCatalog.items)
                 {
                     if (f == null) continue;
                     FurnitureData data = f;
-                    furnitureRows[f] = CreateActionRow(panel, f.displayName, f.description, () => BuyFurniture(data), 60f);
+                    furnitureRows[f] = CreateActionRow(list, f.displayName, f.description, () => BuyFurniture(data), 64f);
                 }
-
-            RectTransform spacer = UIFactory.CreateRect("Spacer", panel);
-            UIFactory.SetSize(spacer, flexibleHeight: 1f);
+            }
         }
 
         private void BuildDevelopmentPanel(RectTransform panel)
@@ -502,10 +506,12 @@ namespace NaSvyazi.UI
             AddCell(row.transform, header ? "Товар" : product.displayName, size, main, 330f);
             AddCell(row.transform, header ? "Категория" : product.category.ToDisplayName(),
                 header ? size : 20f, UIFactory.MutedTextColor, 190f);
-            AddCell(row.transform, header ? "В коробке" : $"{product.unitsPerBox} шт. × {product.purchasePrice}",
+            TextMeshProUGUI unitCell = AddCell(row.transform,
+                header ? "В коробке" : $"{product.unitsPerBox} шт. × {product.EffectivePurchasePrice}",
                 header ? size : 20f, UIFactory.MutedTextColor, 180f);
-            AddCell(row.transform, header ? "Цена коробки" :
-                EconomyManager.Format(product.purchasePrice * product.unitsPerBox), size, main, 170f);
+            TextMeshProUGUI boxCell = AddCell(row.transform, header ? "Цена коробки" :
+                EconomyManager.Format(product.BoxCost), size, main, 170f);
+            if (!header) priceCells[product] = new[] { unitCell, boxCell };
 
             if (header)
             {
@@ -542,10 +548,21 @@ namespace NaSvyazi.UI
             };
         }
 
-        private static void AddCell(Transform row, string text, float size, Color color, float width)
+        private static TextMeshProUGUI AddCell(Transform row, string text, float size, Color color, float width)
         {
             TextMeshProUGUI cell = UIFactory.CreateText("Cell", row, text, size, color);
             UIFactory.SetSize(cell, width: width);
+            return cell;
+        }
+
+        /// <summary>Обновить закупочные цены (меняются навыком «Оптовые скидки»).</summary>
+        private void RefreshPrices()
+        {
+            foreach (KeyValuePair<ProductData, TextMeshProUGUI[]> pair in priceCells)
+            {
+                pair.Value[0].text = $"{pair.Key.unitsPerBox} шт. × {pair.Key.EffectivePurchasePrice}";
+                pair.Value[1].text = EconomyManager.Format(pair.Key.BoxCost);
+            }
         }
     }
 }

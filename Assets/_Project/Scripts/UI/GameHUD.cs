@@ -1,6 +1,8 @@
 using NaSvyazi.Audio;
 using NaSvyazi.Core;
 using NaSvyazi.Economy;
+using NaSvyazi.Events;
+using NaSvyazi.Progression;
 using NaSvyazi.Store;
 using TMPro;
 using UnityEngine;
@@ -18,6 +20,12 @@ namespace NaSvyazi.UI
         [SerializeField] private float flashTime = 0.6f;
 
         private TextMeshProUGUI moneyText;
+        private Image eventPanel;
+        private TextMeshProUGUI eventText;
+        private Image skillPanel;
+        private TextMeshProUGUI skillText;
+        private string shownEvent;
+        private int shownPoints = -1;
         private TextMeshProUGUI reputationText;
         private TextMeshProUGUI clockText;
         private TextMeshProUGUI levelText;
@@ -59,6 +67,28 @@ namespace NaSvyazi.UI
             {
                 flashTimer -= Time.deltaTime;
                 if (flashTimer <= 0f) moneyText.color = UIFactory.TextColor;
+            }
+
+            RefreshEventAndSkills();
+        }
+
+        /// <summary>Плашки «событие дня» и «есть свободные очки навыков» (обновляются при изменении).</summary>
+        private void RefreshEventAndSkills()
+        {
+            string current = StoreEventManager.CurrentName;
+            if (current != shownEvent)
+            {
+                shownEvent = current;
+                eventPanel.gameObject.SetActive(!string.IsNullOrEmpty(current));
+                eventText.text = $"Событие дня: {current}";
+            }
+
+            int points = SkillManager.Instance != null ? SkillManager.Instance.AvailablePoints : 0;
+            if (points != shownPoints)
+            {
+                shownPoints = points;
+                skillPanel.gameObject.SetActive(points > 0);
+                skillText.text = $"Очки навыков: {points}  ·  клавиша K";
             }
         }
 
@@ -103,7 +133,11 @@ namespace NaSvyazi.UI
             notificationText.text = message;
             SoundManager.Play(Sfx.Notify, 0.35f);
             notificationPanel.gameObject.SetActive(true);
-            notificationTimer = notificationTime;
+
+            // Длинные сообщения (объявление события дня) — в две строки и висят дольше.
+            bool longMessage = message.Length > 60;
+            notificationPanel.rectTransform.sizeDelta = new Vector2(longMessage ? 900f : 760f, longMessage ? 96f : 56f);
+            notificationTimer = Mathf.Max(notificationTime, message.Length / 20f);
         }
 
         private void Build()
@@ -155,12 +189,30 @@ namespace NaSvyazi.UI
                 UIFactory.TextColor, TextAlignmentOptions.MidlineRight);
             UIFactory.Stretch(levelText.rectTransform, 12f);
 
+            eventPanel = UIFactory.CreatePanel("Event", canvas.transform, new Color(0.86f, 0.18f, 0.55f, 0.85f));
+            UIFactory.Place(eventPanel.rectTransform, new Vector2(0f, 1f), new Vector2(0f, 1f),
+                new Vector2(24f, -92f), new Vector2(460f, 46f));
+            eventText = UIFactory.CreateText("EventText", eventPanel.transform, "", 22f, Color.white);
+            UIFactory.Stretch(eventText.rectTransform, 14f);
+            eventPanel.gameObject.SetActive(false);
+
+            skillPanel = UIFactory.CreatePanel("Skills", canvas.transform, new Color(0.08f, 0.09f, 0.11f, 0.8f));
+            UIFactory.Place(skillPanel.rectTransform, new Vector2(1f, 1f), new Vector2(1f, 1f),
+                new Vector2(-24f, -200f), new Vector2(300f, 42f));
+            skillText = UIFactory.CreateText("SkillsText", skillPanel.transform, "", 20f,
+                UIFactory.AccentColor, TextAlignmentOptions.MidlineRight);
+            UIFactory.Stretch(skillText.rectTransform, 12f);
+            skillPanel.gameObject.SetActive(false);
+
             notificationPanel = UIFactory.CreatePanel("Notification", canvas.transform,
                 new Color(0.08f, 0.09f, 0.11f, 0.9f));
             UIFactory.Place(notificationPanel.rectTransform, new Vector2(0.5f, 1f), new Vector2(0.5f, 1f),
                 new Vector2(0f, -24f), new Vector2(760f, 56f));
             notificationText = UIFactory.CreateText("Text", notificationPanel.transform, "", 24f,
                 UIFactory.TextColor, TextAlignmentOptions.Center);
+            notificationText.enableAutoSizing = true;
+            notificationText.fontSizeMin = 16f;
+            notificationText.fontSizeMax = 24f;
             UIFactory.Stretch(notificationText.rectTransform, 8f);
             notificationPanel.gameObject.SetActive(false);
         }

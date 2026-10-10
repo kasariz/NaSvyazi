@@ -69,12 +69,12 @@ namespace NaSvyazi.UI
             if (product == null) return;
 
             int price = CurrentPrice;
-            int profit = price - product.purchasePrice;
-            float margin = product.purchasePrice > 0 ? (float)profit / product.purchasePrice * 100f : 0f;
+            int profit = price - product.EffectivePurchasePrice;
+            float margin = product.EffectivePurchasePrice > 0 ? (float)profit / product.EffectivePurchasePrice * 100f : 0f;
             float chance = DemandModel.AverageBuyProbability(price, product.marketPrice);
 
             titleText.text = product.displayName;
-            infoText.text = $"Закупка: {EconomyManager.Format(product.purchasePrice)}    ·    " +
+            infoText.text = $"Закупка: {EconomyManager.Format(product.EffectivePurchasePrice)}    ·    " +
                             $"Рыночная цена: {EconomyManager.Format(product.marketPrice)}";
             priceText.text = EconomyManager.Format(price);
 

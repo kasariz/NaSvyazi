@@ -5,7 +5,9 @@ using System.Text;
 using NaSvyazi.Building;
 using NaSvyazi.Core;
 using NaSvyazi.Economy;
+using NaSvyazi.Events;
 using NaSvyazi.Products;
+using NaSvyazi.Progression;
 using NaSvyazi.Store;
 using NaSvyazi.UI;
 using UnityEngine;
@@ -63,6 +65,11 @@ namespace NaSvyazi.Save
             if (TutorialManager.Instance != null) data.tutorialDone = TutorialManager.Instance.Completed;
             if (ExpansionManager.Instance != null) data.expansionPurchased = ExpansionManager.Instance.IsPurchased;
             if (StaffManager.Instance != null) data.cashierHired = StaffManager.Instance.CashierHired;
+
+            if (SkillManager.Instance != null)
+                foreach (KeyValuePair<string, int> pair in SkillManager.Instance.GetRanks())
+                    data.skills.Add(new SkillEntry { id = pair.Key, rank = pair.Value });
+            data.eventId = StoreEventManager.CurrentId ?? "";
 
             foreach (PlacedFurniture f in FindObjectsByType<PlacedFurniture>(FindObjectsSortMode.None))
             {
@@ -141,6 +148,14 @@ namespace NaSvyazi.Save
             if (TutorialManager.Instance != null) TutorialManager.Instance.SetCompleted(data.tutorialDone || data.day > 1);
             if (ExpansionManager.Instance != null) ExpansionManager.Instance.SetPurchased(data.expansionPurchased);
             if (StaffManager.Instance != null) StaffManager.Instance.SetCashierHired(data.cashierHired);
+
+            if (SkillManager.Instance != null && data.skills != null)
+            {
+                List<KeyValuePair<string, int>> ranks = new List<KeyValuePair<string, int>>();
+                foreach (SkillEntry e in data.skills) ranks.Add(new KeyValuePair<string, int>(e.id, e.rank));
+                SkillManager.Instance.SetRanks(ranks);
+            }
+            if (StoreEventManager.Instance != null) StoreEventManager.Instance.SetCurrent(data.eventId);
 
             RestoreFurniture(data.furniture);
 
@@ -229,6 +244,9 @@ namespace NaSvyazi.Save
             {
                 ProductBox box = Instantiate(boxPrefab, e.position + Vector3.up * 0.02f, e.rotation);
                 box.Fill(FindProduct(e.productId), e.count);
+
+                // Коробка стояла на складском стеллаже — вернуть её на место.
+                StorageRack.TryAttachNear(box);
             }
         }
 
@@ -300,6 +318,15 @@ namespace NaSvyazi.Save
         public List<string> unlocked = new List<string>();
         public List<ShelfEntry> shelves = new List<ShelfEntry>();
         public List<BoxEntry> boxes = new List<BoxEntry>();
+        public List<SkillEntry> skills = new List<SkillEntry>();
+        public string eventId = "";
+    }
+
+    [Serializable]
+    public class SkillEntry
+    {
+        public string id;
+        public int rank;
     }
 
     [Serializable]

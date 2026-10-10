@@ -23,6 +23,13 @@ namespace NaSvyazi.Products
         [Tooltip("Цена закупки у поставщика за 1 шт.")]
         [Min(0)] public int purchasePrice = 100;
 
+        /// <summary>Фактическая цена закупки с учётом навыка «Оптовые скидки».</summary>
+        public int EffectivePurchasePrice =>
+            Mathf.Max(1, Mathf.RoundToInt(purchasePrice * Progression.SkillManager.PurchasePriceMultiplier));
+
+        /// <summary>Стоимость одной коробки у поставщика.</summary>
+        public int BoxCost => EffectivePurchasePrice * unitsPerBox;
+
         [Tooltip("Средняя рыночная цена. От неё покупатели оценивают, дорого или нет")]
         [Min(0)] public int marketPrice = 250;
 

@@ -36,7 +36,9 @@ namespace NaSvyazi.UI
         {
             onNext = onNextDay;
 
-            titleText.text = $"День {report.day} завершён";
+            titleText.text = string.IsNullOrEmpty(report.eventName)
+                ? $"День {report.day} завершён"
+                : $"День {report.day} завершён  ·  {report.eventName}";
 
             StringBuilder f = new StringBuilder();
             f.AppendLine($"Выручка:  {EconomyManager.Format(report.income)}");
@@ -61,6 +63,9 @@ namespace NaSvyazi.UI
             s.AppendLine($"Ушли из очереди:  {report.leftQueue}");
             s.Append($"Консультации (точно / дороже / мимо):  " +
                      $"{report.consultBest} / {report.consultAcceptable} / {report.consultFailed}");
+            if (report.theftItems > 0 || report.thievesCaught > 0)
+                s.Append($"\nУкрадено товаров:  {report.theftItems} на {EconomyManager.Format(report.theftLoss)}" +
+                         $"   ·   задержано воришек:  {report.thievesCaught}");
             serviceText.text = s.ToString();
 
             profitText.text = $"Прибыль за день: {EconomyManager.Format(report.Profit)}";

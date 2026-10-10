@@ -41,7 +41,12 @@ namespace NaSvyazi.Store
         [SerializeField] private Vector3 spacing = new Vector3(0.45f, 0.32f, 0.35f);
         [SerializeField] private Vector3 boxHalfSize = new Vector3(0.2f, 0.15f, 0.15f);
 
-        public float DeliveryTime => deliveryTime;
+        /// <summary>
+        /// Фактическое время доставки: базовое × навык «Быстрая доставка» × событие дня
+        /// («Сбой у поставщика» — втрое дольше).
+        /// </summary>
+        public float DeliveryTime => Mathf.Max(1f, deliveryTime * Progression.SkillManager.DeliveryTimeMultiplier
+                                                   * Events.StoreEventManager.DeliveryMultiplier);
 
         /// <summary>Оформить доставку. Коробки появятся через DeliveryTime секунд.</summary>
         public void ScheduleDelivery(List<DeliveryItem> items)
@@ -53,12 +58,12 @@ namespace NaSvyazi.Store
             }
 
             StartCoroutine(DeliverRoutine(new List<DeliveryItem>(items)));
-            GameEvents.Notify($"Заказ оформлен. Доставка через {deliveryTime:0} сек.");
+            GameEvents.Notify($"Заказ оформлен. Доставка через {DeliveryTime:0} сек.");
         }
 
         private IEnumerator DeliverRoutine(List<DeliveryItem> items)
         {
-            yield return new WaitForSeconds(deliveryTime);
+            yield return new WaitForSeconds(DeliveryTime);
 
             int slot = 0;
             int delivered = 0;

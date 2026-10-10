@@ -4,8 +4,10 @@ using NaSvyazi.Audio;
 using NaSvyazi.Building;
 using NaSvyazi.Customers;
 using NaSvyazi.Economy;
+using NaSvyazi.Events;
 using NaSvyazi.Interaction;
 using NaSvyazi.Products;
+using NaSvyazi.Progression;
 using NaSvyazi.Store;
 using NaSvyazi.Tariffs;
 using NaSvyazi.UI;
@@ -1239,7 +1241,7 @@ namespace NaSvyazi.EditorTools
                     BuildFurniturePrefab("DemoTable", "demo_table", BuildDemoTable, new Vector3(1.2f, 0.9f, 0.7f),
                         FurnitureEffectType.DemoTable, 0f)),
                 CreateFurnitureData("ad_stand", "Рекламный стенд",
-                    "Покупатели приходят чаще: −15 % к интервалу за каждый стенд (до 3).", 2000, 1,
+                    "Покупатели приходят чаще. Ставьте на улице у входа: −15 % к интервалу (в зале — только −7 %), до 3 стендов.", 2000, 1,
                     BuildFurniturePrefab("AdStand", "ad_stand", BuildAdStand, new Vector3(0.7f, 1.4f, 0.3f),
                         FurnitureEffectType.AdStand, 0f)),
                 CreateFurnitureData("plant", "Растение в кашпо",
@@ -1250,6 +1252,14 @@ namespace NaSvyazi.EditorTools
                     "Уют: +1 к репутации каждое утро (декор учитывается до 3 предметов).", 900, 1,
                     BuildFurniturePrefab("WaterCooler", "water_cooler", BuildWaterCooler, new Vector3(0.4f, 1.45f, 0.4f),
                         FurnitureEffectType.Decor, 0f)),
+                CreateFurnitureData("storage_rack", "Складской стеллаж",
+                    "6 мест под коробки, чтобы они не валялись на полу. С коробкой в руках — ЛКМ по стеллажу.", 1500, 1,
+                    BuildFurniturePrefab("StorageRack", "storage_rack", BuildStorageRack, new Vector3(1.05f, 2f, 0.5f),
+                        null, 0f)),
+                CreateFurnitureData("security_camera", "Камера видеонаблюдения",
+                    "Вдвое меньше воришек; кражу в радиусе 7 м камера замечает — догоните вора и нажмите E.", 3000, 2,
+                    BuildFurniturePrefab("SecurityCamera", "security_camera", BuildSecurityCamera,
+                        new Vector3(0.4f, 2.45f, 0.4f), FurnitureEffectType.SecurityCamera, 7f)),
             };
 
             string path = "Assets/_Project/Data/FurnitureCatalog.asset";
@@ -1303,6 +1313,34 @@ namespace NaSvyazi.EditorTools
 
             MarkSceneDirty();
             Debug.Log($"[На связи] Итерация 9: мебели в каталоге — {catalog.items.Count}. Сохраните сцену (Ctrl+S).");
+        }
+
+        [MenuItem("На связи/Подготовить сцену (итерация 10)", priority = 8)]
+        private static void PrepareIteration10()
+        {
+            GameObject systems = GameObject.Find("GameSystems");
+            if (systems == null || Object.FindAnyObjectByType<DayManager>() == null)
+            {
+                Debug.LogError("[На связи] Сначала выполните итерации 3–9.");
+                return;
+            }
+
+            // Каталог мебели пополняется складским стеллажом и камерой видеонаблюдения.
+            FurnitureCatalog catalog = CreateFurnitureCatalog();
+
+            GetOrAdd<SkillManager>(systems);
+            GetOrAdd<SkillTreeUI>(systems);
+            GetOrAdd<StoreEventManager>(systems);
+
+            OrderUI order = Object.FindAnyObjectByType<OrderUI>();
+            if (order != null) SetReference(order, "furnitureCatalog", catalog);
+            Save.SaveSystem save = Object.FindAnyObjectByType<Save.SaveSystem>();
+            if (save != null) SetReference(save, "furnitureCatalog", catalog);
+
+            Selection.activeGameObject = systems;
+            MarkSceneDirty();
+            Debug.Log($"[На связи] Итерация 10: навыки (K), события дня, склад, камеры. Мебели в каталоге — {catalog.items.Count}. " +
+                      "Сохраните сцену (Ctrl+S).");
         }
 
         /// <summary>Собирает префаб мебели: корень, геометрия (build), PlacedFurniture и при необходимости эффект.</summary>
@@ -1454,6 +1492,60 @@ namespace NaSvyazi.EditorTools
                 GetMaterial("M_Pot", new Color(0.3f, 0.25f, 0.22f)), true);
             PrimitivePart(PrimitiveType.Sphere, r, "Leaves", new Vector3(0f, 0.85f, 0f), new Vector3(0.7f, 0.8f, 0.7f),
                 GetMaterial("M_Leaves", new Color(0.25f, 0.55f, 0.3f)), false);
+        }
+
+        /// <summary>Складской стеллаж: синие стойки, три полки по два места под коробки.</summary>
+        private static void BuildStorageRack(Transform r)
+        {
+            Material frame = GetMaterial("M_StorageFrame", new Color(0.2f, 0.36f, 0.62f));
+            Material board = GetMaterial("M_StorageBoard", new Color(0.72f, 0.58f, 0.38f));
+
+            foreach (float x in new[] { -0.48f, 0.48f })
+                foreach (float z in new[] { -0.23f, 0.23f })
+                    Part(r, "Upright", new Vector3(x, 1f, z), new Vector3(0.04f, 2f, 0.04f), frame);
+            Part(r, "TopBeam", new Vector3(0f, 1.98f, 0f), new Vector3(1f, 0.04f, 0.5f), frame);
+
+            float[] boards = { 0.06f, 0.72f, 1.38f };
+            List<Vector3> slots = new List<Vector3>();
+            for (int i = 0; i < boards.Length; i++)
+            {
+                Part(r, $"Board_{i + 1}", new Vector3(0f, boards[i], 0f), new Vector3(0.92f, 0.04f, 0.5f), board);
+                // Коробка 0.4 × 0.3 × 0.3, её центр — на 0.15 выше полки.
+                foreach (float x in new[] { -0.23f, 0.23f })
+                    slots.Add(new Vector3(x, boards[i] + 0.02f + 0.155f, 0f));
+            }
+
+            Part(r, "Header", new Vector3(0f, 1.86f, 0.255f), new Vector3(0.5f, 0.16f, 0.01f), frame, false);
+            TextMeshPro label = CreateLabel("Label", r, new Vector3(0f, 1.86f, 0.262f), Quaternion.Euler(0f, 180f, 0f),
+                new Vector2(0.46f, 0.13f), Color.white);
+            label.fontSizeMax = 1f;
+            label.text = "СКЛАД";
+
+            StorageRack rack = r.gameObject.AddComponent<StorageRack>();
+            SerializedObject so = new SerializedObject(rack);
+            SerializedProperty list = so.FindProperty("slots");
+            list.arraySize = slots.Count;
+            for (int i = 0; i < slots.Count; i++) list.GetArrayElementAtIndex(i).vector3Value = slots[i];
+            so.ApplyModifiedPropertiesWithoutUndo();
+        }
+
+        /// <summary>Камера видеонаблюдения на стойке с красным индикатором.</summary>
+        private static void BuildSecurityCamera(Transform r)
+        {
+            Material dark = GetMaterial("M_Device", new Color(0.12f, 0.12f, 0.14f));
+            Material body = GetMaterial("M_CameraBody", new Color(0.9f, 0.9f, 0.92f));
+
+            Part(r, "Base", new Vector3(0f, 0.02f, 0f), new Vector3(0.35f, 0.04f, 0.35f), dark);
+            PrimitivePart(PrimitiveType.Cylinder, r, "Pole", new Vector3(0f, 1.2f, 0f), new Vector3(0.06f, 1.2f, 0.06f),
+                dark, true);
+            Part(r, "Arm", new Vector3(0f, 2.36f, 0.1f), new Vector3(0.05f, 0.05f, 0.22f), dark, false);
+
+            GameObject cam = Part(r, "Camera", new Vector3(0f, 2.3f, 0.28f), new Vector3(0.14f, 0.12f, 0.3f), body, false);
+            cam.transform.localRotation = Quaternion.Euler(20f, 0f, 0f);
+            GameObject lens = Part(r, "Lens", new Vector3(0f, 2.25f, 0.43f), new Vector3(0.09f, 0.09f, 0.02f), dark, false);
+            lens.transform.localRotation = Quaternion.Euler(20f, 0f, 0f);
+            PrimitivePart(PrimitiveType.Sphere, r, "Led", new Vector3(0.05f, 2.35f, 0.33f), new Vector3(0.03f, 0.03f, 0.03f),
+                GetMaterial("M_Led", new Color(1f, 0.1f, 0.1f)), false);
         }
 
         private static void BuildWaterCooler(Transform r)

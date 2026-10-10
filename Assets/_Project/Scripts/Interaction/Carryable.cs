@@ -76,11 +76,24 @@ namespace NaSvyazi.Interaction
         /// </summary>
         public void OnReleasedTo(Transform parent, Vector3 localPosition, Quaternion localRotation)
         {
+            PrepareForStorage();
             transform.SetParent(parent, false);
             transform.localPosition = localPosition;
             transform.localRotation = localRotation;
             SetCollidersEnabled(true);
             IsHeld = false;
+        }
+
+        /// <summary>Остановить физику: предмет будет закреплён (на складе, на полке).</summary>
+        public void PrepareForStorage()
+        {
+            if (!body.isKinematic)
+            {
+                body.linearVelocity = Vector3.zero;
+                body.angularVelocity = Vector3.zero;
+            }
+            body.isKinematic = true;
+            body.interpolation = RigidbodyInterpolation.None;
         }
 
         private void SetCollidersEnabled(bool enabled)

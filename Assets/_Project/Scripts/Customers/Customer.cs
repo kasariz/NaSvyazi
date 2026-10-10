@@ -1,6 +1,8 @@
 using System.Collections.Generic;
 using NaSvyazi.Building;
 using NaSvyazi.Economy;
+using NaSvyazi.Events;
+using NaSvyazi.Progression;
 using NaSvyazi.Products;
 using NaSvyazi.Store;
 using NaSvyazi.Tariffs;
@@ -47,7 +49,7 @@ namespace NaSvyazi.Customers
     /// Перемещение — NavMeshAgent по навигационной сетке салона.
     /// </summary>
     [RequireComponent(typeof(NavMeshAgent))]
-    public class Customer : MonoBehaviour
+    public class Customer : MonoBehaviour, Interaction.IInteractable
     {
         private static readonly int BaseColorId = Shader.PropertyToID("_BaseColor");
         private static readonly int SpeedId = Animator.StringToHash("Speed");
@@ -85,6 +87,11 @@ namespace NaSvyazi.Customers
         private int queueIndex = -1;
         private bool beingServed;
         private bool impulseChecked;
+
+        // --- Воровство ---
+        private bool isThief;
+        private bool spottedByCamera;
+        private bool escaping;
         private int cashGiven = -1;
 
         public CustomerState State { get; private set; }
@@ -210,7 +217,11 @@ namespace NaSvyazi.Customers
                     break;
 
                 case CustomerState.Leaving:
-                    if (HasArrived() || stateTimer > stuckTimeout * 2f) Destroy(gameObject);
+                    if (HasArrived() || stateTimer > stuckTimeout * 2f)
+                    {
+                        if (escaping && basket.Count > 0) RegisterTheft();
+                        Destroy(gameObject);
+                    }
                     break;
             }
 
@@ -244,7 +255,8 @@ namespace NaSvyazi.Customers
             }
 
             // Список обойдён.
-            if (basket.Count > 0) JoinQueue();
+            if (basket.Count > 0 && isThief) StartEscape();
+            else if (basket.Count > 0) JoinQueue();
             else
             {
                 StoreStats.LeftEmptyHanded++;
@@ -268,13 +280,19 @@ namespace NaSvyazi.Customers
             // Демо-стол помогает продавать смартфоны и аудио: покупатель готов заплатить чуть больше.
             float tolerance = priceTolerance;
             if (wanted.category.RequiresShowcase()) tolerance += FurnitureEffect.PremiumToleranceBonus;
+            // Навык «Яркие ценники» и событие дня тоже меняют готовность платить.
+            tolerance += SkillManager.ToleranceBonus + StoreEventManager.ToleranceBonus(wanted.category);
 
             float chance = DemandModel.BuyProbability(price, wanted.marketPrice, tolerance);
 
             if (Random.value <= chance)
             {
                 if (targetSection.TryTakeOne(out ProductData taken))
+                {
                     basket.Add(new BasketItem(taken, price));
+                    if (isThief && FurnitureEffect.NearestWithin(FurnitureEffectType.SecurityCamera, transform.position) != null)
+                        spottedByCamera = true;
+                }
             }
             else
             {
@@ -333,7 +351,7 @@ namespace NaSvyazi.Customers
         {
             queue.Join(this);
             queueIndex = -1;
-            patienceTimer = queuePatience;
+            patienceTimer = queuePatience * SkillManager.PatienceMultiplier; // навык «Вежливость»
             SetState(CustomerState.InQueue);
             UpdateQueue(); // сразу направляемся к своему месту в очереди
         }
@@ -387,7 +405,9 @@ namespace NaSvyazi.Customers
             ShelfSection section = stocked[Random.Range(0, stocked.Count)];
             ProductData product = section.Product;
             int price = PriceManager.PriceOf(product);
-            if (Random.value > DemandModel.BuyProbability(price, product.marketPrice, priceTolerance)) return;
+            float impulseTolerance = priceTolerance + SkillManager.ToleranceBonus
+                                     + StoreEventManager.ToleranceBonus(product.category);
+            if (Random.value > DemandModel.BuyProbability(price, product.marketPrice, impulseTolerance)) return;
 
             if (section.TryTakeOne(out ProductData taken))
             {
@@ -455,6 +475,90 @@ namespace NaSvyazi.Customers
         }
 
         // --- «Облачко» с репликой над головой ---
+
+        // ----------------------------------------------------------------
+        // Воровство
+        // ----------------------------------------------------------------
+
+        /// <summary>Сделать покупателя вором (решает генератор покупателей).</summary>
+        public void MakeThief() => isThief = true;
+
+        public bool IsEscapingThief => escaping && basket.Count > 0;
+
+        /// <summary>Вор с товаром идёт к выходу мимо кассы. Камера рядом замечает это.</summary>
+        private void StartEscape()
+        {
+            escaping = true;
+            spottedByCamera = FurnitureEffect.NearestWithin(FurnitureEffectType.SecurityCamera, transform.position) != null
+                              || spottedByCamera;
+
+            if (spottedByCamera)
+            {
+                if (bubble != null) bubble.color = new Color(1f, 0.3f, 0.3f);
+                Say("!!!");
+                bubbleTimer = 999f;
+                Core.GameEvents.Notify("Камера заметила кражу! Догоните покупателя с «!!!» и задержите его — E.");
+                Audio.SoundManager.Play(Audio.Sfx.Error);
+            }
+
+            SetState(CustomerState.Leaving);
+            agent.speed *= 1.25f;
+            MoveTo(exitPoint);
+        }
+
+        /// <summary>Вор ушёл с товаром — недостача.</summary>
+        private void RegisterTheft()
+        {
+            int loss = BasketTotal;
+            StoreStats.TheftItems += basket.Count;
+            StoreStats.TheftLoss += loss;
+            if (spottedByCamera)
+            {
+                ReputationManager.Add(-1, "вор ушёл с товаром");
+                Core.GameEvents.Notify($"Вор ушёл с товаром на {EconomyManager.Format(loss)}");
+            }
+            basket.Clear();
+        }
+
+        // --- IInteractable: задержать вора ---
+
+        public string GetPrompt(Player.PlayerInteractor interactor) => "Задержать покупателя";
+
+        public bool CanInteract(Player.PlayerInteractor interactor) => IsEscapingThief;
+
+        public void Interact(Player.PlayerInteractor interactor)
+        {
+            if (!IsEscapingThief) return;
+
+            // Возвращаем товар на полки, где есть место. Что не поместилось, считается потерянным.
+            int returned = 0;
+            foreach (BasketItem item in basket)
+            {
+                foreach (ShelfSection s in ShelfSection.All)
+                {
+                    if (s.CanPlace(item.product) && (s.Product == item.product || s.IsEmpty) && s.TryPlace(item.product))
+                    {
+                        returned++;
+                        break;
+                    }
+                }
+            }
+
+            int lost = basket.Count - returned;
+            basket.Clear();
+            escaping = false;
+            StoreStats.ThievesCaught++;
+            ReputationManager.Add(2, "задержан вор");
+            Core.GameEvents.Notify(lost == 0
+                ? "Вор задержан, весь товар возвращён на полки"
+                : $"Вор задержан. Возвращено на полки: {returned}, не нашлось места: {lost}");
+            Audio.SoundManager.Play(Audio.Sfx.Notify);
+
+            if (bubble != null) bubble.color = new Color(1f, 0.9f, 0.3f);
+            bubbleTimer = 0f;
+            Say("Простите, больше не буду...");
+            Leave();
+        }
 
         public void Say(string text)
         {

@@ -1,6 +1,8 @@
 using NaSvyazi.Core;
 using NaSvyazi.Customers;
 using NaSvyazi.Economy;
+using NaSvyazi.Events;
+using NaSvyazi.Progression;
 using NaSvyazi.Player;
 using NaSvyazi.UI;
 using UnityEngine;
@@ -50,7 +52,9 @@ namespace NaSvyazi.Store
             {
                 int level = Economy.LevelManager.Instance != null ? Economy.LevelManager.Instance.Level : 1;
                 int expansion = Building.ExpansionManager.Instance != null ? Building.ExpansionManager.Instance.ExtraRent : 0;
-                return dailyRent + rentPerLevel * (level - 1) + expansion;
+                int rent = dailyRent + rentPerLevel * (level - 1) + expansion;
+                // Навык «Переговоры с арендодателем» снижает аренду.
+                return Mathf.RoundToInt(rent * SkillManager.RentMultiplier);
             }
         }
 
@@ -72,6 +76,9 @@ namespace NaSvyazi.Store
         {
             RaiseTime();
             GameEvents.Notify($"День {Day}. Подготовьте салон и откройте его табличкой у входа.");
+
+            // Событие дня: «Чёрная пятница», выход нового смартфона, дождь и т. д.
+            if (StoreEventManager.Instance != null) StoreEventManager.Instance.RollForDay(Day);
         }
 
         private void Update()
@@ -207,6 +214,10 @@ namespace NaSvyazi.Store
         public int consultAcceptable;
         public int consultFailed;
         public int impulseBuys;
+        public int theftItems;
+        public int theftLoss;
+        public int thievesCaught;
+        public string eventName;
 
         public int Profit => income - expenses;
 
@@ -234,7 +245,11 @@ namespace NaSvyazi.Store
                 consultBest = StoreStats.ConsultationsBest,
                 consultAcceptable = StoreStats.ConsultationsAcceptable,
                 consultFailed = StoreStats.ConsultationsFailed,
-                impulseBuys = StoreStats.ImpulseBuys
+                impulseBuys = StoreStats.ImpulseBuys,
+                theftItems = StoreStats.TheftItems,
+                theftLoss = StoreStats.TheftLoss,
+                thievesCaught = StoreStats.ThievesCaught,
+                eventName = StoreEventManager.CurrentName
             };
         }
     }

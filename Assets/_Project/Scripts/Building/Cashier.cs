@@ -1,3 +1,4 @@
+using NaSvyazi.Progression;
 using NaSvyazi.Store;
 using UnityEngine;
 
@@ -32,7 +33,8 @@ namespace NaSvyazi.Building
                 timer = 0f;
             }
 
-            timer += Time.deltaTime;
+            // Навык «Обучение кассира» ускоряет работу.
+            timer += Time.deltaTime * SkillManager.CashierSpeedMultiplier;
 
             switch (register.State)
             {
@@ -49,7 +51,7 @@ namespace NaSvyazi.Building
                     break;
 
                 case RegisterState.Consulting:
-                    if (timer >= consultationDelay) register.AutoConsult(consultationAccuracy);
+                    if (timer >= consultationDelay) register.AutoConsult(SkillManager.TariffExpert ? 1f : consultationAccuracy);
                     break;
             }
         }
