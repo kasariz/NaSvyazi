@@ -63,7 +63,11 @@ namespace NaSvyazi.Save
                 data.xp = LevelManager.Instance.Xp;
             }
             if (TutorialManager.Instance != null) data.tutorialDone = TutorialManager.Instance.Completed;
-            if (ExpansionManager.Instance != null) data.expansionPurchased = ExpansionManager.Instance.IsPurchased;
+            if (ExpansionManager.Instance != null)
+            {
+                data.salonStage = ExpansionManager.Instance.SalonStage;
+                data.storageStage = ExpansionManager.Instance.StorageStage;
+            }
             if (StaffManager.Instance != null) data.cashierHired = StaffManager.Instance.CashierHired;
 
             if (SkillManager.Instance != null)
@@ -142,11 +146,19 @@ namespace NaSvyazi.Save
             }
             if (data == null) return;
 
+            // Сохранения до перестройки карты (итерация 11) не подходят: мебель и коробки стояли в других местах.
+            if (data.version < SaveData.CurrentVersion)
+            {
+                Debug.LogWarning("[Сохранение] Сохранение от старой версии карты — начинаем новую игру.");
+                GameEvents.Notify("Карта салона изменилась — старое сохранение не загружено, начинаем заново.");
+                return;
+            }
+
             if (EconomyManager.Instance != null) EconomyManager.Instance.SetBalance(data.balance);
             if (ReputationManager.Instance != null) ReputationManager.Instance.SetValue(data.reputation);
             if (LevelManager.Instance != null) LevelManager.Instance.SetState(data.level, data.xp);
             if (TutorialManager.Instance != null) TutorialManager.Instance.SetCompleted(data.tutorialDone || data.day > 1);
-            if (ExpansionManager.Instance != null) ExpansionManager.Instance.SetPurchased(data.expansionPurchased);
+            if (ExpansionManager.Instance != null) ExpansionManager.Instance.SetStages(data.salonStage, data.storageStage);
             if (StaffManager.Instance != null) StaffManager.Instance.SetCashierHired(data.cashierHired);
 
             if (SkillManager.Instance != null && data.skills != null)
@@ -237,8 +249,14 @@ namespace NaSvyazi.Save
             if (boxPrefab == null) return;
 
             // Коробки, расставленные в сцене заранее, заменяются сохранёнными.
+            // Сначала снимаем их со стеллажей склада: Destroy срабатывает в конце кадра,
+            // а место на стеллаже должно освободиться сразу.
             foreach (ProductBox box in FindObjectsByType<ProductBox>(FindObjectsSortMode.None))
+            {
+                box.transform.SetParent(null);
+                box.gameObject.SetActive(false);
                 Destroy(box.gameObject);
+            }
 
             foreach (BoxEntry e in entries)
             {
@@ -282,7 +300,7 @@ namespace NaSvyazi.Save
             try
             {
                 SaveData data = JsonUtility.FromJson<SaveData>(File.ReadAllText(SavePath, Encoding.UTF8));
-                return data != null ? data.day : 0;
+                return data != null && data.version >= SaveData.CurrentVersion ? data.day : 0;
             }
             catch (Exception)
             {
@@ -304,14 +322,18 @@ namespace NaSvyazi.Save
     [Serializable]
     public class SaveData
     {
-        public int version = 2;
+        /// <summary>3 — новая карта (итерация 11): склад, этапы расширения зала.</summary>
+        public const int CurrentVersion = 3;
+
+        public int version = CurrentVersion;
         public int day = 1;
         public int balance;
         public int reputation = 50;
         public int level = 1;
         public int xp;
         public bool tutorialDone;
-        public bool expansionPurchased;
+        public int salonStage;
+        public int storageStage;
         public bool cashierHired;
         public List<FurnitureEntry> furniture = new List<FurnitureEntry>();
         public List<PriceEntry> prices = new List<PriceEntry>();

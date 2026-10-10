@@ -28,18 +28,6 @@ namespace NaSvyazi.Building
         [SerializeField] private float maxDistance = 7f;
         [SerializeField] private float gridStep = 0.25f;
 
-        [Header("Разрешённая область (основной зал)")]
-        [SerializeField] private Rect mainHall = new Rect(-9.8f, -9.8f, 19.6f, 19.6f);
-
-        [Tooltip("Проход от двери, который нельзя загораживать")]
-        [SerializeField] private Rect doorPassage = new Rect(-7.8f, -10f, 3.6f, 2.6f);
-
-        [Header("Улица (только для рекламного стенда)")]
-        [SerializeField] private Rect street = new Rect(-9.8f, -17.8f, 19.6f, 7.5f);
-
-        [Tooltip("Дорожка от точки появления покупателей к двери — её не загораживаем")]
-        [SerializeField] private Rect streetPath = new Rect(-7.8f, -18f, 3.6f, 8.2f);
-
         private PlacedFurniture ghost;
         private bool isNew;
         private int refundPrice;
@@ -56,7 +44,9 @@ namespace NaSvyazi.Building
         /// <summary>Подсказка для интерфейса во время расстановки.</summary>
         public string Prompt => valid
             ? "[ЛКМ] Установить   [R] Повернуть   [ПКМ] Отмена"
-            : "Здесь нельзя поставить   [R] Повернуть   [ПКМ] Отмена";
+            : $"{invalidReason}   [R] Повернуть   [ПКМ] Отмена";
+
+        private string invalidReason = "Здесь нельзя поставить";
 
         private void Awake() => Instance = this;
 
@@ -181,16 +171,32 @@ namespace NaSvyazi.Building
 
             Rect footprint = new Rect(position.x - halfX, position.z - halfZ, halfX * 2f, halfZ * 2f);
 
-            bool insideHall = Contains(mainHall, footprint);
-            if (!insideHall && ExpansionManager.Instance != null && ExpansionManager.Instance.IsPurchased)
-                insideHall = Contains(ExpansionManager.Instance.HallArea, footprint);
+            invalidReason = "Здесь нельзя поставить";
+            ExpansionManager layout = ExpansionManager.Instance;
+
+            bool inSalon = layout != null
+                ? layout.Contains(LayoutZone.Salon, footprint)
+                : Contains(LayoutPlan.Salon[0].areas[0], footprint);
+
+            // На складе — только складские стеллажи: покупатели туда не заходят.
+            bool inStorage = layout != null && layout.Contains(LayoutZone.Storage, footprint);
+            if (inStorage && ghost.GetComponent<StorageRack>() == null)
+            {
+                invalidReason = "На склад — только складские стеллажи";
+                return false;
+            }
 
             // Рекламный стенд можно вынести на улицу — там ему и место.
-            bool outdoorAllowed = IsOutdoorFurniture(ghost);
-            bool onStreet = outdoorAllowed && Contains(street, footprint) && !streetPath.Overlaps(footprint);
+            bool onStreet = IsOutdoorFurniture(ghost) && Contains(LayoutPlan.Street, footprint);
 
-            if (!insideHall && !onStreet) return false;
-            if (doorPassage.Overlaps(footprint)) return false;
+            if (!inSalon && !inStorage && !onStreet) return false;
+
+            foreach (Rect passage in LayoutPlan.KeepClear)
+                if (passage.Overlaps(footprint))
+                {
+                    invalidReason = "Не загораживайте проход";
+                    return false;
+                }
 
             // Пересечение с другими объектами (пол не задевается — проверка начинается на 10 см выше).
             Vector3 center = position + Vector3.up * (size.y * 0.5f + 0.1f);

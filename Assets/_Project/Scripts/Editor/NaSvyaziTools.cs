@@ -30,7 +30,7 @@ namespace NaSvyazi.EditorTools
     /// стеллаж с секциями, тестовые коробки и мусорный бак.
     /// В сборку игры этот код не попадает (папка Editor).
     /// </summary>
-    public static class NaSvyaziTools
+    public static partial class NaSvyaziTools
     {
         private const string ProductsFolder = "Assets/_Project/Data/Products";
         private const string PrefabsFolder = "Assets/_Project/Prefabs";
@@ -272,6 +272,8 @@ namespace NaSvyazi.EditorTools
         /// </summary>
         private static void DecorateSalon()
         {
+            if (HasNewLayout("Оформление салона")) return;
+
             if (GameObject.Find("Decor") != null)
             {
                 Debug.Log("[На связи] Оформление уже есть — пропускаю.");
@@ -367,6 +369,8 @@ namespace NaSvyazi.EditorTools
         [MenuItem("На связи/Исправить надписи и потолок", priority = 13)]
         private static void FixDecor()
         {
+            if (HasNewLayout("Исправить надписи и потолок")) return;
+
             GameObject decor = GameObject.Find("Decor");
             if (decor == null)
             {
@@ -570,6 +574,8 @@ namespace NaSvyazi.EditorTools
         [MenuItem("На связи/Выровнять стены, пол и объекты", priority = 10)]
         private static void AlignLayout()
         {
+            if (HasNewLayout("Выровнять стены, пол и объекты")) return;
+
             GameObject environment = GameObject.Find("Environment");
             if (environment != null)
             {
@@ -1037,6 +1043,8 @@ namespace NaSvyazi.EditorTools
         /// <summary>Дверной проём в южной стене и улица перед салоном.</summary>
         private static void CreateDoorAndStreet()
         {
+            if (HasNewLayout("Дверь и улица")) return;
+
             if (GameObject.Find("Street") != null) return;
 
             GameObject environment = GameObject.Find("Environment");
@@ -1186,17 +1194,14 @@ namespace NaSvyazi.EditorTools
 
             FurnitureCatalog furniture = CreateFurnitureCatalog();
             ReplaceSceneShelf(furniture);
-            ExpansionParts expansion = CreateExpansionHall();
             Cashier cashier = CreateCashier(register);
 
             GetOrAdd<LevelManager>(systems);
             GetOrAdd<TutorialManager>(systems);
             GetOrAdd<FurniturePlacer>(systems);
-            ExpansionManager expansionManager = GetOrAdd<ExpansionManager>(systems);
+            GetOrAdd<ExpansionManager>(systems);
             StaffManager staff = GetOrAdd<StaffManager>(systems);
 
-            SetReference(expansionManager, "hallRoot", expansion.hall);
-            SetReference(expansionManager, "gateWall", expansion.gate);
             SetReference(staff, "cashier", cashier);
 
             OrderUI order = Object.FindAnyObjectByType<OrderUI>();
@@ -1601,85 +1606,6 @@ namespace NaSvyazi.EditorTools
             so.ApplyModifiedPropertiesWithoutUndo();
         }
 
-        private struct ExpansionParts
-        {
-            public GameObject hall;
-            public GameObject gate;
-        }
-
-        /// <summary>
-        /// Второй зал за восточной стеной (x от 10 до 18) и съёмный участок стены — проём.
-        /// Восточная стена делится на три части: z от −10 до 2.5, проём 2.5…6.5, z от 6.5 до 10.
-        /// </summary>
-        private static ExpansionParts CreateExpansionHall()
-        {
-            ExpansionParts parts = new ExpansionParts();
-
-            GameObject existingHall = FindIncludingInactive("Expansion_Hall");
-            GameObject existingGate = GameObject.Find("Wall_E_Gate");
-            if (existingHall != null && existingGate != null)
-            {
-                parts.hall = existingHall;
-                parts.gate = existingGate;
-                return parts;
-            }
-
-            GameObject environment = GameObject.Find("Environment");
-            Transform envT = environment != null ? environment.transform : null;
-
-            // Делим восточную стену.
-            GameObject wall = GameObject.Find("Wall_E");
-            if (wall != null)
-            {
-                Undo.RecordObject(wall.transform, "Расширение");
-                float height = wall.transform.lossyScale.y;
-                float thickness = wall.transform.lossyScale.x;
-                wall.transform.position = new Vector3(10f, height * 0.5f, -3.75f);
-                wall.transform.localScale = new Vector3(thickness, height, 12.5f);
-
-                parts.gate = Object.Instantiate(wall, wall.transform.parent);
-                parts.gate.name = "Wall_E_Gate";
-                parts.gate.transform.position = new Vector3(10f, height * 0.5f, 4.5f);
-                parts.gate.transform.localScale = new Vector3(thickness, height, 4f);
-                Undo.RegisterCreatedObjectUndo(parts.gate, "Расширение");
-
-                GameObject north = Object.Instantiate(wall, wall.transform.parent);
-                north.name = "Wall_E2";
-                north.transform.position = new Vector3(10f, height * 0.5f, 8.25f);
-                north.transform.localScale = new Vector3(thickness, height, 3.5f);
-                Undo.RegisterCreatedObjectUndo(north, "Расширение");
-            }
-
-            // Сам зал (выключен до покупки).
-            GameObject hall = new GameObject("Expansion_Hall");
-            if (envT != null) hall.transform.SetParent(envT, true);
-            hall.transform.position = Vector3.zero;
-            Undo.RegisterCreatedObjectUndo(hall, "Расширение");
-            Transform h = hall.transform;
-
-            Material floor = AssetDatabase.LoadAssetAtPath<Material>($"{MaterialsFolder}/M_FloorTiles.mat")
-                             ?? GetMaterial("M_FloorTiles", Color.white);
-            Material wallMat = GetMaterial("M_Wall", new Color(0.93f, 0.92f, 0.9f));
-
-            WorldCube(h, "Floor_2", new Vector3(14f, -0.5f, 0f), new Vector3(8f, 1f, 20f), floor, withCollider: true);
-            WorldCube(h, "Wall_2N", new Vector3(14f, 1.5f, 10f), new Vector3(8.2f, 3f, 0.2f), wallMat, withCollider: true);
-            WorldCube(h, "Wall_2S", new Vector3(14f, 1.5f, -10f), new Vector3(8.2f, 3f, 0.2f), wallMat, withCollider: true);
-            WorldCube(h, "Wall_2E", new Vector3(18f, 1.5f, 0f), new Vector3(0.2f, 3f, 20f), wallMat, withCollider: true);
-
-            GameObject ceiling = WorldCube(h, "Ceiling_2", new Vector3(14f, 3.1f, 0f), new Vector3(8f, 0.2f, 20f),
-                GetMaterial("M_Ceiling", new Color(0.96f, 0.96f, 0.96f)), withCollider: true);
-            ceiling.GetComponent<Renderer>().shadowCastingMode = ShadowCastingMode.Off;
-
-            Material lamp = GetEmissiveMaterial("M_Lamp", new Color(1f, 0.98f, 0.92f), 2f);
-            foreach (float z in new[] { -5f, 0f, 5f })
-                WorldCube(h, "Lamp", new Vector3(14f, 2.99f, z), new Vector3(1.2f, 0.02f, 0.4f), lamp)
-                    .GetComponent<Renderer>().shadowCastingMode = ShadowCastingMode.Off;
-
-            hall.SetActive(false);
-            parts.hall = hall;
-            return parts;
-        }
-
         /// <summary>Кассир за прилавком. Внешность — первая модель покупателя, если персонажи подключены.</summary>
         private static Cashier CreateCashier(CashRegister register)
         {
@@ -1742,13 +1668,25 @@ namespace NaSvyazi.EditorTools
             OrderUI orderUI = Object.FindAnyObjectByType<OrderUI>();
             TariffCatalog tariffs = AssetDatabase.LoadAssetAtPath<TariffCatalog>("Assets/_Project/Data/TariffCatalog.asset");
 
-            CashRegister oldRegister = Object.FindAnyObjectByType<CashRegister>();
-            if (oldRegister != null) Undo.DestroyObjectImmediate(oldRegister.gameObject);
-            OrderTerminal oldTerminal = Object.FindAnyObjectByType<OrderTerminal>();
-            if (oldTerminal != null) Undo.DestroyObjectImmediate(oldTerminal.gameObject);
+            // Новые устройства встают на места старых (на любой версии карты).
+            Vector3 registerPosition = new Vector3(-0.8f, 1.0f, 6.0f);
+            Vector3 terminalPosition = new Vector3(0.9f, 1.0f, 6.0f);
 
-            CashRegister register = CreateCashRegister(new Vector3(-0.8f, 1.0f, 6.0f));
-            OrderTerminal terminal = CreateOrderTerminal(new Vector3(0.9f, 1.0f, 6.0f));
+            CashRegister oldRegister = Object.FindAnyObjectByType<CashRegister>();
+            if (oldRegister != null)
+            {
+                registerPosition = oldRegister.transform.position;
+                Undo.DestroyObjectImmediate(oldRegister.gameObject);
+            }
+            OrderTerminal oldTerminal = Object.FindAnyObjectByType<OrderTerminal>();
+            if (oldTerminal != null)
+            {
+                terminalPosition = oldTerminal.transform.position;
+                Undo.DestroyObjectImmediate(oldTerminal.gameObject);
+            }
+
+            CashRegister register = CreateCashRegister(registerPosition);
+            OrderTerminal terminal = CreateOrderTerminal(terminalPosition);
 
             if (queue != null) SetReference(register, "queue", queue);
             if (changeUI != null) SetReference(register, "changeUI", changeUI);

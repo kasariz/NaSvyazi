@@ -212,10 +212,13 @@ namespace NaSvyazi.UI
         {
             public Button button;
             public TextMeshProUGUI label;
+            public TextMeshProUGUI title;
+            public TextMeshProUGUI description;
         }
 
         private readonly Dictionary<FurnitureData, ActionRow> furnitureRows = new Dictionary<FurnitureData, ActionRow>();
-        private ActionRow expansionRow;
+        private ActionRow salonRow;
+        private ActionRow storageRow;
         private ActionRow cashierRow;
         private TextMeshProUGUI developmentInfo;
 
@@ -243,25 +246,8 @@ namespace NaSvyazi.UI
                                                  && EconomyManager.Instance.CanAfford(f.price);
             }
 
-            ExpansionManager expansion = ExpansionManager.Instance;
-            if (expansionRow != null && expansion != null)
-            {
-                if (expansion.IsPurchased)
-                {
-                    expansionRow.label.text = "Открыт";
-                    expansionRow.button.interactable = false;
-                }
-                else if (level < expansion.MinLevel)
-                {
-                    expansionRow.label.text = $"Уровень салона {expansion.MinLevel}";
-                    expansionRow.button.interactable = false;
-                }
-                else
-                {
-                    expansionRow.label.text = $"Купить: {EconomyManager.Format(expansion.Price)}";
-                    expansionRow.button.interactable = true;
-                }
-            }
+            RefreshStageRow(salonRow, LayoutZone.Salon, level);
+            RefreshStageRow(storageRow, LayoutZone.Storage, level);
 
             StaffManager staff = StaffManager.Instance;
             if (cashierRow != null && staff != null)
@@ -322,9 +308,41 @@ namespace NaSvyazi.UI
             Refresh();
         }
 
-        private void BuyExpansion()
+        /// <summary>Строка «следующее расширение» для зала или склада.</summary>
+        private static void RefreshStageRow(ActionRow row, LayoutZone zone, int level)
         {
-            if (ExpansionManager.Instance != null) ExpansionManager.Instance.TryPurchase();
+            ExpansionManager expansion = ExpansionManager.Instance;
+            if (row == null || expansion == null) return;
+
+            LayoutStage next = expansion.NextStage(zone);
+            if (next == null)
+            {
+                row.title.text = zone == LayoutZone.Salon ? "Торговый зал" : "Склад";
+                row.description.text = "Все расширения уже открыты.";
+                row.label.text = "Готово";
+                row.button.interactable = false;
+                return;
+            }
+
+            int total = LayoutPlan.Stages(zone).Length - 1;
+            row.title.text = $"{next.name}  ({expansion.StageOf(zone) + 1}/{total})";
+            row.description.text = $"{next.description} Аренда +{EconomyManager.Format(next.extraRent)} в день.";
+
+            if (level < next.minLevel)
+            {
+                row.label.text = $"Уровень салона {next.minLevel}";
+                row.button.interactable = false;
+            }
+            else
+            {
+                row.label.text = $"Купить: {EconomyManager.Format(next.price)}";
+                row.button.interactable = EconomyManager.Instance != null && EconomyManager.Instance.CanAfford(next.price);
+            }
+        }
+
+        private void BuyExpansion(LayoutZone zone)
+        {
+            if (ExpansionManager.Instance != null) ExpansionManager.Instance.TryUpgrade(zone);
             Refresh();
         }
 
@@ -451,10 +469,8 @@ namespace NaSvyazi.UI
             developmentInfo = UIFactory.CreateText("Info", panel, "", 22f, UIFactory.TextColor, TextAlignmentOptions.TopLeft);
             UIFactory.SetSize(developmentInfo, height: 70f);
 
-            int extraRent = ExpansionManager.Instance != null ? ExpansionManager.Instance.ExtraRentIfPurchased : 1000;
-            expansionRow = CreateActionRow(panel, "Второй торговый зал",
-                $"Ещё 160 м² за восточной стеной: больше стеллажей и товаров. Аренда +{EconomyManager.Format(extraRent)} в день.",
-                BuyExpansion);
+            salonRow = CreateActionRow(panel, "Торговый зал", "", () => BuyExpansion(LayoutZone.Salon));
+            storageRow = CreateActionRow(panel, "Склад", "", () => BuyExpansion(LayoutZone.Storage));
 
             int wage = StaffManager.Instance != null ? StaffManager.Instance.CashierWage : 1500;
             cashierRow = CreateActionRow(panel, "Кассир",
@@ -474,6 +490,9 @@ namespace NaSvyazi.UI
 
             TextMeshProUGUI title = UIFactory.CreateText("Name", row.transform, name, 26f, UIFactory.TextColor);
             title.fontStyle = FontStyles.Bold;
+            title.enableAutoSizing = true;
+            title.fontSizeMin = 16f;
+            title.fontSizeMax = 26f;
             UIFactory.SetSize(title, width: 300f);
 
             TextMeshProUGUI desc = UIFactory.CreateText("Desc", row.transform, description, 19f, UIFactory.MutedTextColor);
@@ -485,7 +504,13 @@ namespace NaSvyazi.UI
             Button button = UIFactory.CreateButton("Action", row.transform, "", onClick, UIFactory.AccentColor, 22f);
             UIFactory.SetSize(button, width: 280f);
 
-            return new ActionRow { button = button, label = button.GetComponentInChildren<TextMeshProUGUI>() };
+            return new ActionRow
+            {
+                button = button,
+                label = button.GetComponentInChildren<TextMeshProUGUI>(),
+                title = title,
+                description = desc
+            };
         }
 
         /// <summary>Строка таблицы: заголовок (product == null) или товар.</summary>

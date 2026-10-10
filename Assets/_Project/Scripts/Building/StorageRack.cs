@@ -33,6 +33,14 @@ namespace NaSvyazi.Building
             }
         }
 
+        /// <summary>Коробки, заранее расставленные на стеллаже в сцене, закрепляются на своих местах.</summary>
+        private void Start()
+        {
+            foreach (ProductBox box in FindObjectsByType<ProductBox>(FindObjectsSortMode.None))
+                if (!box.IsHeld && box.GetComponentInParent<StorageRack>() == null)
+                    TryAttachNear(box);
+        }
+
         private void OnEnable() => All.Add(this);
         private void OnDisable() => All.Remove(this);
 

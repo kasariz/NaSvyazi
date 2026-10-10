@@ -1,3 +1,4 @@
+using System.Collections.Generic;
 using NaSvyazi.Audio;
 using NaSvyazi.Core;
 using NaSvyazi.Economy;
@@ -6,34 +7,25 @@ using UnityEngine;
 namespace NaSvyazi.Building
 {
     /// <summary>
-    /// Расширение салона: второй торговый зал за восточной стеной.
-    /// После покупки открывается проём в стене, зал становится доступен
-    /// для мебели и покупателей, но растёт ежедневная аренда.
+    /// Расширение помещений. Торговый зал растёт в два шага (стены раздвигаются),
+    /// затем открывается второй зал, который тоже можно расширить. Склад расширяется отдельно.
+    /// Каждый этап добавляет участки пола для мебели и увеличивает аренду.
+    /// Стены и пол всех этапов уже построены в сцене (StagePiece) — здесь они только включаются.
     /// </summary>
+    [DefaultExecutionOrder(-200)] // раньше построения навигационной сетки
     public class ExpansionManager : MonoBehaviour
     {
         public static ExpansionManager Instance { get; private set; }
 
-        [SerializeField] private GameObject hallRoot;
-        [SerializeField] private GameObject gateWall;
+        public int SalonStage { get; private set; }
+        public int StorageStage { get; private set; }
 
-        [SerializeField] private int price = 25000;
-        [SerializeField] private int minLevel = 3;
-        [SerializeField] private int extraRent = 1000;
-
-        [Tooltip("Область второго зала для расстановки мебели (X, Z, ширина, глубина)")]
-        [SerializeField] private Rect hallArea = new Rect(10.2f, -9.8f, 7.6f, 19.6f);
-
-        public bool IsPurchased { get; private set; }
-        public int Price => price;
-        public int MinLevel => minLevel;
-        public int ExtraRent => IsPurchased ? extraRent : 0;
-        public int ExtraRentIfPurchased => extraRent;
-        public Rect HallArea => hallArea;
+        private readonly List<StagePiece> pieces = new List<StagePiece>();
 
         private void Awake()
         {
             Instance = this;
+            pieces.AddRange(FindObjectsByType<StagePiece>(FindObjectsInactive.Include, FindObjectsSortMode.None));
             Apply();
         }
 
@@ -42,45 +34,96 @@ namespace NaSvyazi.Building
             if (Instance == this) Instance = null;
         }
 
-        public bool TryPurchase()
-        {
-            if (IsPurchased) return true;
+        public int StageOf(LayoutZone zone) => zone == LayoutZone.Salon ? SalonStage : StorageStage;
 
-            if (LevelManager.CurrentLevel < minLevel)
+        /// <summary>Следующий этап расширения или null, если всё уже открыто.</summary>
+        public LayoutStage NextStage(LayoutZone zone)
+        {
+            LayoutStage[] stages = LayoutPlan.Stages(zone);
+            int next = StageOf(zone) + 1;
+            return next < stages.Length ? stages[next] : null;
+        }
+
+        /// <summary>Доплата к аренде за все купленные расширения.</summary>
+        public int ExtraRent
+        {
+            get
             {
-                GameEvents.Notify($"Нужен уровень салона {minLevel}");
+                int sum = 0;
+                for (int i = 1; i <= SalonStage; i++) sum += LayoutPlan.Salon[i].extraRent;
+                for (int i = 1; i <= StorageStage; i++) sum += LayoutPlan.Storage[i].extraRent;
+                return sum;
+            }
+        }
+
+        public bool TryUpgrade(LayoutZone zone)
+        {
+            LayoutStage next = NextStage(zone);
+            if (next == null) return false;
+
+            if (LevelManager.CurrentLevel < next.minLevel)
+            {
+                GameEvents.Notify($"Нужен уровень салона {next.minLevel}");
                 SoundManager.Play(Sfx.Error);
                 return false;
             }
 
             EconomyManager economy = EconomyManager.Instance;
-            if (economy == null || !economy.TrySpend(price, "Расширение зала"))
+            if (economy == null || !economy.TrySpend(next.price, next.name))
             {
                 GameEvents.Notify("Недостаточно денег");
                 SoundManager.Play(Sfx.Error);
                 return false;
             }
 
-            IsPurchased = true;
+            if (zone == LayoutZone.Salon) SalonStage++;
+            else StorageStage++;
+
             Apply();
             SoundManager.Play(Sfx.Purchase);
-            GameEvents.Notify("Второй зал открыт! Расставьте в нём стеллажи.");
+            GameEvents.Notify($"{next.name} — готово! Аренда выросла на {EconomyManager.Format(next.extraRent)} в день.");
             GameEvents.RaiseLayoutChanged();
             return true;
         }
 
-        /// <summary>Восстановить состояние (при загрузке).</summary>
-        public void SetPurchased(bool purchased)
+        /// <summary>Восстановить этапы (при загрузке).</summary>
+        public void SetStages(int salon, int storage)
         {
-            IsPurchased = purchased;
+            SalonStage = Mathf.Clamp(salon, 0, LayoutPlan.Salon.Length - 1);
+            StorageStage = Mathf.Clamp(storage, 0, LayoutPlan.Storage.Length - 1);
             Apply();
             GameEvents.RaiseLayoutChanged();
         }
 
+        /// <summary>Помещается ли прямоугольник (X, Z) целиком в открытую часть помещения.</summary>
+        public bool Contains(LayoutZone zone, Rect r)
+        {
+            // Проверяем углы, середины сторон и центр: этого достаточно для залов из прямоугольников.
+            float[] xs = { r.xMin, r.center.x, r.xMax };
+            float[] zs = { r.yMin, r.center.y, r.yMax };
+            foreach (float x in xs)
+                foreach (float z in zs)
+                    if (!ContainsPoint(zone, x, z)) return false;
+            return true;
+        }
+
+        public bool ContainsPoint(LayoutZone zone, float x, float z)
+        {
+            const float eps = 0.001f;
+            LayoutStage[] stages = LayoutPlan.Stages(zone);
+            int stage = StageOf(zone);
+            for (int i = 0; i <= stage && i < stages.Length; i++)
+                foreach (Rect a in stages[i].areas)
+                    if (x >= a.xMin - eps && x <= a.xMax + eps && z >= a.yMin - eps && z <= a.yMax + eps)
+                        return true;
+            return false;
+        }
+
         private void Apply()
         {
-            if (hallRoot != null) hallRoot.SetActive(IsPurchased);
-            if (gateWall != null) gateWall.SetActive(!IsPurchased);
+            foreach (StagePiece piece in pieces)
+                if (piece != null)
+                    piece.gameObject.SetActive(piece.VisibleAt(StageOf(piece.Zone)));
         }
     }
 }

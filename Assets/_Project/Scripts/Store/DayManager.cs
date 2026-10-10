@@ -75,7 +75,7 @@ namespace NaSvyazi.Store
         private void Start()
         {
             RaiseTime();
-            GameEvents.Notify($"День {Day}. Подготовьте салон и откройте его табличкой у входа.");
+            GameEvents.Notify($"День {Day}. Подготовьте салон и откройте его табличкой за прилавком.");
 
             // Событие дня: «Чёрная пятница», выход нового смартфона, дождь и т. д.
             if (StoreEventManager.Instance != null) StoreEventManager.Instance.RollForDay(Day);
@@ -167,7 +167,7 @@ namespace NaSvyazi.Store
             if (decor > 0) ReputationManager.Add(decor, "уютный салон");
 
             RaiseTime();
-            GameEvents.Notify($"День {Day}. Подготовьте салон и откройте его табличкой у входа.");
+            GameEvents.Notify($"День {Day}. Подготовьте салон и откройте его табличкой за прилавком.");
 
             if (Save.SaveSystem.Instance != null) Save.SaveSystem.Instance.Save();
         }
