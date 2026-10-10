@@ -59,7 +59,9 @@ namespace NaSvyazi.Customers
             if (timer > 0f) return;
 
             // Чем выше репутация, тем чаще приходят покупатели.
-            timer = Random.Range(spawnInterval.x, spawnInterval.y) * ReputationManager.SpawnIntervalMultiplier;
+            // Рекламные стенды тоже привлекают покупателей.
+            timer = Random.Range(spawnInterval.x, spawnInterval.y) * ReputationManager.SpawnIntervalMultiplier
+                    * Building.FurnitureEffect.SpawnIntervalMultiplier;
             if (active.Count < maxCustomers) Spawn();
         }
 

@@ -12,6 +12,12 @@ namespace NaSvyazi.Products
 
     public static class ProductCategoryExtensions
     {
+        /// <summary>
+        /// Дорогие товары (смартфоны, аудио) выставляются только в витрину — как в настоящем салоне.
+        /// </summary>
+        public static bool RequiresShowcase(this ProductCategory category) =>
+            category == ProductCategory.Phones || category == ProductCategory.Audio;
+
         /// <summary>Название категории для интерфейса.</summary>
         public static string ToDisplayName(this ProductCategory category)
         {

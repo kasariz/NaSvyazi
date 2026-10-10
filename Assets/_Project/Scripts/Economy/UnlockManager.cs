@@ -87,7 +87,9 @@ namespace NaSvyazi.Economy
 
             unlocked.Add(category);
             GameEvents.RaiseCategoryUnlocked(category);
-            GameEvents.Notify($"Открыта категория «{category.ToDisplayName()}»");
+            GameEvents.Notify(category.RequiresShowcase()
+                ? $"Открыта категория «{category.ToDisplayName()}». Такие товары выставляются только в витрину — она во вкладке «Мебель»."
+                : $"Открыта категория «{category.ToDisplayName()}»");
             return true;
         }
 

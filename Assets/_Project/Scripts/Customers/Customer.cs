@@ -1,4 +1,5 @@
 using System.Collections.Generic;
+using NaSvyazi.Building;
 using NaSvyazi.Economy;
 using NaSvyazi.Products;
 using NaSvyazi.Store;
@@ -83,6 +84,7 @@ namespace NaSvyazi.Customers
         private float bubbleTimer;
         private int queueIndex = -1;
         private bool beingServed;
+        private bool impulseChecked;
         private int cashGiven = -1;
 
         public CustomerState State { get; private set; }
@@ -262,7 +264,12 @@ namespace NaSvyazi.Customers
             }
 
             int price = PriceManager.PriceOf(wanted);
-            float chance = DemandModel.BuyProbability(price, wanted.marketPrice, priceTolerance);
+
+            // Демо-стол помогает продавать смартфоны и аудио: покупатель готов заплатить чуть больше.
+            float tolerance = priceTolerance;
+            if (wanted.category.RequiresShowcase()) tolerance += FurnitureEffect.PremiumToleranceBonus;
+
+            float chance = DemandModel.BuyProbability(price, wanted.marketPrice, tolerance);
 
             if (Random.value <= chance)
             {
@@ -343,7 +350,16 @@ namespace NaSvyazi.Customers
             if (HasArrived())
                 FaceTowards(transform.position + queue.FacingDirection);
 
-            if (!beingServed) patienceTimer -= Time.deltaTime;
+            // Импульсная покупка: постояв немного в очереди, покупатель может взять мелочь со стойки рядом.
+            if (!impulseChecked && !beingServed && Intent == CustomerIntent.Shopping && stateTimer > 1.5f)
+            {
+                impulseChecked = true;
+                TryImpulseBuy();
+            }
+
+            // Рядом с зоной ожидания терпение тратится вдвое медленнее.
+            float drain = FurnitureEffect.NearestWithin(FurnitureEffectType.WaitingArea, transform.position) != null ? 0.5f : 1f;
+            if (!beingServed) patienceTimer -= Time.deltaTime * drain;
             if (patienceTimer <= 0f)
             {
                 Say("Слишком долго!");
@@ -352,6 +368,32 @@ namespace NaSvyazi.Customers
                 queue.Leave(this);
                 basket.Clear();
                 Leave();
+            }
+        }
+
+        /// <summary>Взять товар со стойки у кассы, если она рядом и цена устраивает.</summary>
+        private void TryImpulseBuy()
+        {
+            const float impulseChance = 0.35f;
+
+            FurnitureEffect rack = FurnitureEffect.NearestWithin(FurnitureEffectType.ImpulseRack, transform.position);
+            if (rack == null || Random.value > impulseChance) return;
+
+            List<ShelfSection> stocked = new List<ShelfSection>();
+            foreach (ShelfSection s in rack.GetComponentsInChildren<ShelfSection>())
+                if (!s.IsEmpty) stocked.Add(s);
+            if (stocked.Count == 0) return;
+
+            ShelfSection section = stocked[Random.Range(0, stocked.Count)];
+            ProductData product = section.Product;
+            int price = PriceManager.PriceOf(product);
+            if (Random.value > DemandModel.BuyProbability(price, product.marketPrice, priceTolerance)) return;
+
+            if (section.TryTakeOne(out ProductData taken))
+            {
+                basket.Add(new BasketItem(taken, price));
+                StoreStats.ImpulseBuys++;
+                Say($"Возьму ещё: {taken.displayName}");
             }
         }
 

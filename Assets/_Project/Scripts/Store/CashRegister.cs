@@ -237,12 +237,46 @@ namespace NaSvyazi.Store
             ResetRegister();
         }
 
-        /// <summary>Итог консультации: доход — абонентская плата за первый месяц.</summary>
+        /// <summary>
+        /// Взять стартовый пакет SIM с полки (для подключения тарифа). Возвращает его цену продажи.
+        /// </summary>
+        private static bool TakeSimFromShelf(out int simPrice)
+        {
+            foreach (ShelfSection section in ShelfSection.All)
+            {
+                if (section.IsEmpty || section.Product.category != Products.ProductCategory.SimCards) continue;
+                if (section.TryTakeOne(out Products.ProductData sim))
+                {
+                    simPrice = PriceManager.PriceOf(sim);
+                    return true;
+                }
+            }
+            simPrice = 0;
+            return false;
+        }
+
+        /// <summary>
+        /// Итог консультации. Для подключения нужен стартовый пакет SIM с полки:
+        /// доход — абонентская плата за первый месяц плюс цена SIM.
+        /// </summary>
         private void OnTariffChosen(TariffData chosen)
         {
             if (current == null) return;
 
             ConsultationResult result = tariffCatalog.Evaluate(current.Need, chosen);
+
+            int simPrice = 0;
+            if (result != ConsultationResult.Unsuitable && !TakeSimFromShelf(out simPrice))
+            {
+                StoreStats.OutOfStockMisses++;
+                ReputationManager.Add(-2, "нет SIM-карт для подключения");
+                SoundManager.Play(Sfx.Error);
+                GameEvents.Notify("На полках нет SIM-карт — клиент ушёл без подключения");
+                current.CompletePurchase("Как это — нет SIM-карт?");
+                ResetRegister();
+                return;
+            }
+            if (simPrice > 0) StoreStats.ItemsSold++;
             switch (result)
             {
                 case ConsultationResult.Best:
@@ -250,7 +284,7 @@ namespace NaSvyazi.Store
                     ReputationManager.Add(3, "точно подобран тариф");
                     LevelManager.AddXp(6, "точная консультация");
                     GameEvents.RaiseSaleCompleted();
-                    Earn(chosen.monthlyFee, "Подключение тарифа");
+                    Earn(chosen.monthlyFee + simPrice, "Подключение тарифа");
                     SoundManager.Play(Sfx.Purchase);
                     GameEvents.Notify($"Отличный выбор! Клиент подключил «{chosen.displayName}»");
                     current.CompletePurchase("То, что нужно, спасибо!");
@@ -261,7 +295,7 @@ namespace NaSvyazi.Store
                     ReputationManager.Add(-1, "клиенту подобран тариф дороже нужного");
                     LevelManager.AddXp(2, "консультация");
                     GameEvents.RaiseSaleCompleted();
-                    Earn(chosen.monthlyFee, "Подключение тарифа");
+                    Earn(chosen.monthlyFee + simPrice, "Подключение тарифа");
                     TariffData best = tariffCatalog.BestFor(current.Need);
                     GameEvents.Notify(best != null
                         ? $"Подходит, но выгоднее был бы «{best.displayName}»"

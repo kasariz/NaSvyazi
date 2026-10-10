@@ -155,6 +155,10 @@ namespace NaSvyazi.Store
             if (EconomyManager.Instance != null) EconomyManager.Instance.ResetDayStats();
             StoreStats.ResetDay();
 
+            // Уютный зал (растения, кулер) понемногу поднимает репутацию.
+            int decor = Building.FurnitureEffect.DailyReputationBonus;
+            if (decor > 0) ReputationManager.Add(decor, "уютный салон");
+
             RaiseTime();
             GameEvents.Notify($"День {Day}. Подготовьте салон и откройте его табличкой у входа.");
 
@@ -202,6 +206,7 @@ namespace NaSvyazi.Store
         public int consultBest;
         public int consultAcceptable;
         public int consultFailed;
+        public int impulseBuys;
 
         public int Profit => income - expenses;
 
@@ -228,7 +233,8 @@ namespace NaSvyazi.Store
                 changeLoss = StoreStats.ChangeLoss,
                 consultBest = StoreStats.ConsultationsBest,
                 consultAcceptable = StoreStats.ConsultationsAcceptable,
-                consultFailed = StoreStats.ConsultationsFailed
+                consultFailed = StoreStats.ConsultationsFailed,
+                impulseBuys = StoreStats.ImpulseBuys
             };
         }
     }

@@ -44,6 +44,7 @@ namespace NaSvyazi.Building
 
         private readonly List<Collider> disabledColliders = new List<Collider>();
         private readonly List<ShelfSection> disabledSections = new List<ShelfSection>();
+        private readonly List<FurnitureEffect> disabledEffects = new List<FurnitureEffect>();
         private readonly Dictionary<Renderer, MaterialPropertyBlock> savedBlocks = new Dictionary<Renderer, MaterialPropertyBlock>();
 
         /// <summary>Подсказка для интерфейса во время расстановки.</summary>
@@ -116,6 +117,15 @@ namespace NaSvyazi.Building
                 {
                     s.enabled = false;
                     disabledSections.Add(s);
+                }
+
+            // Эффект мебели (реклама, декор и т. п.) не действует, пока её переставляют.
+            disabledEffects.Clear();
+            foreach (FurnitureEffect e in ghost.GetComponentsInChildren<FurnitureEffect>())
+                if (e.enabled)
+                {
+                    e.enabled = false;
+                    disabledEffects.Add(e);
                 }
 
             savedBlocks.Clear();
@@ -227,6 +237,9 @@ namespace NaSvyazi.Building
                 if (c != null) c.enabled = true;
             foreach (ShelfSection s in disabledSections)
                 if (s != null) s.enabled = true;
+            foreach (FurnitureEffect e in disabledEffects)
+                if (e != null) e.enabled = true;
+            disabledEffects.Clear();
 
             savedBlocks.Clear();
             disabledColliders.Clear();

@@ -888,6 +888,13 @@ namespace NaSvyazi.EditorTools
             return root;
         }
 
+        private static GameObject CreateSectionReturn(string name, Transform parent, Vector3 localPos,
+            float width, float depth, float height, float frontOffset, float boardThickness)
+        {
+            CreateSection(name, parent, localPos, width, depth, height, frontOffset, boardThickness);
+            return parent.Find(name).gameObject;
+        }
+
         private static void CreateSection(string name, Transform parent, Vector3 localPos,
             float width, float depth, float height, float frontOffset, float boardThickness)
         {
@@ -1216,6 +1223,33 @@ namespace NaSvyazi.EditorTools
                     "4 полки, 8 секций под товар. Основной стеллаж салона.", 2500, 1, tall),
                 CreateFurnitureData("shelf_low", "Стеллаж низкий",
                     "2 полки, 4 секции. Удобен у прилавка и в центре зала: не закрывает обзор.", 1500, 1, low),
+                CreateFurnitureData("showcase", "Витрина",
+                    "Для смартфонов и аудио — эти товары выставляются только в витрину. 2 секции.", 6000, 2,
+                    BuildFurniturePrefab("Showcase", "showcase", BuildShowcase, new Vector3(1.6f, 1.2f, 0.6f), null, 0f)),
+                CreateFurnitureData("impulse_rack", "Стойка у кассы",
+                    "Покупатели в очереди рядом с ней иногда докупают мелочь. Ставьте у очереди.", 1200, 1,
+                    BuildFurniturePrefab("ImpulseRack", "impulse_rack", BuildImpulseRack, new Vector3(0.6f, 1.4f, 0.35f),
+                        FurnitureEffectType.ImpulseRack, 3.5f)),
+                CreateFurnitureData("waiting_chairs", "Кресла для ожидания",
+                    "Покупатели в очереди рядом теряют терпение вдвое медленнее.", 1800, 1,
+                    BuildFurniturePrefab("WaitingChairs", "waiting_chairs", BuildWaitingChairs, new Vector3(1.6f, 0.95f, 0.55f),
+                        FurnitureEffectType.WaitingArea, 4f)),
+                CreateFurnitureData("demo_table", "Демо-стол",
+                    "Смартфоны «в руки»: покупатели охотнее берут смартфоны и аудио (до 2 столов).", 4500, 3,
+                    BuildFurniturePrefab("DemoTable", "demo_table", BuildDemoTable, new Vector3(1.2f, 0.9f, 0.7f),
+                        FurnitureEffectType.DemoTable, 0f)),
+                CreateFurnitureData("ad_stand", "Рекламный стенд",
+                    "Покупатели приходят чаще: −15 % к интервалу за каждый стенд (до 3).", 2000, 1,
+                    BuildFurniturePrefab("AdStand", "ad_stand", BuildAdStand, new Vector3(0.7f, 1.4f, 0.3f),
+                        FurnitureEffectType.AdStand, 0f)),
+                CreateFurnitureData("plant", "Растение в кашпо",
+                    "Уют: +1 к репутации каждое утро (декор учитывается до 3 предметов).", 600, 1,
+                    BuildFurniturePrefab("Plant", "plant", BuildPlant, new Vector3(0.6f, 1.3f, 0.6f),
+                        FurnitureEffectType.Decor, 0f)),
+                CreateFurnitureData("water_cooler", "Кулер с водой",
+                    "Уют: +1 к репутации каждое утро (декор учитывается до 3 предметов).", 900, 1,
+                    BuildFurniturePrefab("WaterCooler", "water_cooler", BuildWaterCooler, new Vector3(0.4f, 1.45f, 0.4f),
+                        FurnitureEffectType.Decor, 0f)),
             };
 
             string path = "Assets/_Project/Data/FurnitureCatalog.asset";
@@ -1251,6 +1285,185 @@ namespace NaSvyazi.EditorTools
             GameObject prefab = PrefabUtility.SaveAsPrefabAsset(root, path);
             Object.DestroyImmediate(root);
             return prefab;
+        }
+
+        // ----------------------------------------------------------------
+        // Итерация 9: новая мебель
+        // ----------------------------------------------------------------
+
+        [MenuItem("На связи/Подготовить сцену (итерация 9)", priority = 7)]
+        private static void PrepareIteration9()
+        {
+            FurnitureCatalog catalog = CreateFurnitureCatalog();
+
+            OrderUI order = Object.FindAnyObjectByType<OrderUI>();
+            if (order != null) SetReference(order, "furnitureCatalog", catalog);
+            Save.SaveSystem save = Object.FindAnyObjectByType<Save.SaveSystem>();
+            if (save != null) SetReference(save, "furnitureCatalog", catalog);
+
+            MarkSceneDirty();
+            Debug.Log($"[На связи] Итерация 9: мебели в каталоге — {catalog.items.Count}. Сохраните сцену (Ctrl+S).");
+        }
+
+        /// <summary>Собирает префаб мебели: корень, геометрия (build), PlacedFurniture и при необходимости эффект.</summary>
+        private static GameObject BuildFurniturePrefab(string name, string id, System.Action<Transform> build,
+            Vector3 footprint, FurnitureEffectType? effect, float radius)
+        {
+            string path = $"{FurnitureFolder}/{name}.prefab";
+            GameObject existing = AssetDatabase.LoadAssetAtPath<GameObject>(path);
+            if (existing != null) return existing;
+
+            GameObject root = new GameObject(name);
+            build(root.transform);
+
+            PlacedFurniture placed = root.AddComponent<PlacedFurniture>();
+            SerializedObject so = new SerializedObject(placed);
+            so.FindProperty("furnitureId").stringValue = id;
+            so.FindProperty("instanceId").stringValue = "";
+            so.FindProperty("footprint").vector3Value = footprint;
+            so.ApplyModifiedPropertiesWithoutUndo();
+
+            if (effect.HasValue)
+            {
+                FurnitureEffect fx = root.AddComponent<FurnitureEffect>();
+                SerializedObject fso = new SerializedObject(fx);
+                fso.FindProperty("type").enumValueIndex = (int)effect.Value;
+                if (radius > 0f) fso.FindProperty("radius").floatValue = radius;
+                fso.ApplyModifiedPropertiesWithoutUndo();
+            }
+
+            GameObject prefab = PrefabUtility.SaveAsPrefabAsset(root, path);
+            Object.DestroyImmediate(root);
+            return prefab;
+        }
+
+        private static GameObject Part(Transform parent, string name, Vector3 position, Vector3 size, Material m,
+            bool collider = true) => CreateCube(name, parent, position, size, m, collider);
+
+        private static GameObject PrimitivePart(PrimitiveType type, Transform parent, string name, Vector3 position,
+            Vector3 scale, Material m, bool collider)
+        {
+            GameObject go = GameObject.CreatePrimitive(type);
+            go.name = name;
+            go.transform.SetParent(parent, false);
+            go.transform.localPosition = position;
+            go.transform.localScale = scale;
+            go.GetComponent<Renderer>().sharedMaterial = m;
+            if (!collider) Object.DestroyImmediate(go.GetComponent<Collider>());
+            return go;
+        }
+
+        /// <summary>Витрина: тёмная тумба, светлая столешница, рамка «стекла» и 2 секции сверху.</summary>
+        private static void BuildShowcase(Transform r)
+        {
+            Material dark = GetMaterial("M_ShowcaseBase", new Color(0.15f, 0.15f, 0.18f));
+            Material top = GetMaterial("M_ShowcaseTop", new Color(0.85f, 0.86f, 0.9f));
+            Material frame = GetMaterial("M_Device", new Color(0.12f, 0.12f, 0.14f));
+
+            Part(r, "Base", new Vector3(0f, 0.425f, 0f), new Vector3(1.6f, 0.85f, 0.6f), dark);
+            Part(r, "Top", new Vector3(0f, 0.865f, 0f), new Vector3(1.6f, 0.03f, 0.6f), top);
+            Part(r, "Accent", new Vector3(0f, 0.75f, 0.305f), new Vector3(1.6f, 0.08f, 0.01f),
+                GetMaterial("M_Accent", new Color(0.86f, 0.18f, 0.55f)), false);
+
+            foreach (float x in new[] { -0.78f, 0.78f })
+                foreach (float z in new[] { -0.28f, 0.28f })
+                    Part(r, "Post", new Vector3(x, 1.03f, z), new Vector3(0.02f, 0.3f, 0.02f), frame, false);
+            foreach (float z in new[] { -0.29f, 0.29f })
+                Part(r, "Rail", new Vector3(0f, 1.19f, z), new Vector3(1.6f, 0.02f, 0.02f), frame, false);
+
+            for (int i = 0; i < 2; i++)
+            {
+                GameObject section = CreateSectionReturn($"Section_{i + 1}", r, new Vector3(i == 0 ? -0.385f : 0.385f, 0.88f, 0f),
+                    0.72f, 0.5f, 0.28f, 0.3f, 0.03f);
+                SerializedObject so = new SerializedObject(section.GetComponent<ShelfSection>());
+                so.FindProperty("showcase").boolValue = true;
+                so.ApplyModifiedPropertiesWithoutUndo();
+            }
+        }
+
+        /// <summary>Стойка у кассы: задняя панель, две полки по одной секции.</summary>
+        private static void BuildImpulseRack(Transform r)
+        {
+            Material frame = GetMaterial("M_ShelfLow", new Color(0.32f, 0.33f, 0.37f));
+            Part(r, "Back", new Vector3(0f, 0.65f, -0.16f), new Vector3(0.6f, 1.3f, 0.02f), frame);
+            Part(r, "Base", new Vector3(0f, 0.025f, 0f), new Vector3(0.6f, 0.05f, 0.35f), frame);
+            Part(r, "Header", new Vector3(0f, 1.36f, -0.16f), new Vector3(0.6f, 0.14f, 0.025f),
+                GetMaterial("M_Accent", new Color(0.86f, 0.18f, 0.55f)), false);
+
+            float[] boards = { 0.45f, 0.85f };
+            for (int i = 0; i < boards.Length; i++)
+            {
+                Part(r, $"Board_{i + 1}", new Vector3(0f, boards[i], 0f), new Vector3(0.56f, 0.02f, 0.3f), frame);
+                CreateSectionReturn($"Section_{i + 1}", r, new Vector3(0f, boards[i] + 0.01f, 0.01f),
+                    0.52f, 0.26f, 0.3f, 0.14f, 0.02f);
+            }
+        }
+
+        /// <summary>Кресла для ожидания: сиденье, спинка, ножки.</summary>
+        private static void BuildWaitingChairs(Transform r)
+        {
+            Material seat = GetMaterial("M_Seat", new Color(0.22f, 0.3f, 0.45f));
+            Material metal = GetMaterial("M_Device", new Color(0.12f, 0.12f, 0.14f));
+
+            Part(r, "Seat", new Vector3(0f, 0.44f, 0f), new Vector3(1.6f, 0.08f, 0.5f), seat);
+            Part(r, "Back", new Vector3(0f, 0.7f, -0.22f), new Vector3(1.6f, 0.45f, 0.06f), seat);
+            foreach (float x in new[] { -0.7f, 0f, 0.7f })
+                Part(r, "Divider", new Vector3(x == 0f ? 0f : x * 1.1f, 0.55f, 0f), new Vector3(0.04f, 0.15f, 0.45f), metal, false);
+            foreach (float x in new[] { -0.7f, 0.7f })
+                foreach (float z in new[] { -0.2f, 0.2f })
+                    Part(r, "Leg", new Vector3(x, 0.2f, z), new Vector3(0.05f, 0.4f, 0.05f), metal, false);
+        }
+
+        /// <summary>Демо-стол со смартфонами на столешнице.</summary>
+        private static void BuildDemoTable(Transform r)
+        {
+            Material top = GetMaterial("M_ShowcaseTop", new Color(0.85f, 0.86f, 0.9f));
+            Material dark = GetMaterial("M_Device", new Color(0.12f, 0.12f, 0.14f));
+            Material screen = GetMaterial("M_Screen", new Color(0.15f, 0.35f, 0.6f));
+
+            Part(r, "Top", new Vector3(0f, 0.8f, 0f), new Vector3(1.2f, 0.05f, 0.7f), top);
+            Part(r, "Pedestal", new Vector3(0f, 0.39f, 0f), new Vector3(0.25f, 0.78f, 0.25f), dark);
+            Part(r, "Foot", new Vector3(0f, 0.015f, 0f), new Vector3(0.6f, 0.03f, 0.5f), dark);
+
+            foreach (float x in new[] { -0.4f, 0f, 0.4f })
+            {
+                Part(r, "Phone", new Vector3(x, 0.831f, 0.05f), new Vector3(0.08f, 0.012f, 0.16f), dark, false);
+                Part(r, "Screen", new Vector3(x, 0.838f, 0.05f), new Vector3(0.07f, 0.002f, 0.14f), screen, false);
+            }
+        }
+
+        /// <summary>Рекламный стенд с надписью, обращённой к покупателям.</summary>
+        private static void BuildAdStand(Transform r)
+        {
+            Material dark = GetMaterial("M_Device", new Color(0.12f, 0.12f, 0.14f));
+            Material accent = GetMaterial("M_Accent", new Color(0.86f, 0.18f, 0.55f));
+
+            Part(r, "Base", new Vector3(0f, 0.02f, 0f), new Vector3(0.5f, 0.04f, 0.3f), dark);
+            Part(r, "Pole", new Vector3(0f, 0.27f, 0f), new Vector3(0.04f, 0.5f, 0.04f), dark, false);
+            Part(r, "Panel", new Vector3(0f, 0.95f, 0f), new Vector3(0.7f, 0.9f, 0.04f), accent);
+
+            TextMeshPro label = CreateLabel("Label", r, new Vector3(0f, 0.95f, 0.025f), Quaternion.Euler(0f, 180f, 0f),
+                new Vector2(0.62f, 0.8f), Color.white);
+            label.fontSizeMax = 1.2f;
+            label.text = "Тарифы\nот 300 руб./мес\n\nНовые\nсмартфоны";
+        }
+
+        private static void BuildPlant(Transform r)
+        {
+            PrimitivePart(PrimitiveType.Cylinder, r, "Pot", new Vector3(0f, 0.22f, 0f), new Vector3(0.4f, 0.22f, 0.4f),
+                GetMaterial("M_Pot", new Color(0.3f, 0.25f, 0.22f)), true);
+            PrimitivePart(PrimitiveType.Sphere, r, "Leaves", new Vector3(0f, 0.85f, 0f), new Vector3(0.7f, 0.8f, 0.7f),
+                GetMaterial("M_Leaves", new Color(0.25f, 0.55f, 0.3f)), false);
+        }
+
+        private static void BuildWaterCooler(Transform r)
+        {
+            Part(r, "Body", new Vector3(0f, 0.5f, 0f), new Vector3(0.35f, 1f, 0.35f),
+                GetMaterial("M_CoolerBody", new Color(0.92f, 0.92f, 0.94f)));
+            Part(r, "Tap", new Vector3(0f, 0.8f, 0.19f), new Vector3(0.06f, 0.04f, 0.04f),
+                GetMaterial("M_Device", new Color(0.12f, 0.12f, 0.14f)), false);
+            PrimitivePart(PrimitiveType.Cylinder, r, "Bottle", new Vector3(0f, 1.2f, 0f), new Vector3(0.28f, 0.2f, 0.28f),
+                GetMaterial("M_Bottle", new Color(0.4f, 0.7f, 0.95f)), false);
         }
 
         private static FurnitureData CreateFurnitureData(string id, string name, string description, int price,

@@ -37,6 +37,9 @@ namespace NaSvyazi.Economy
         public static int ConsultationsAcceptable;
         public static int ConsultationsFailed;
 
+        /// <summary>Импульсные покупки со стойки у кассы.</summary>
+        public static int ImpulseBuys;
+
         public static void ResetDay()
         {
             CustomersServed = 0;
@@ -52,6 +55,7 @@ namespace NaSvyazi.Economy
             ConsultationsBest = 0;
             ConsultationsAcceptable = 0;
             ConsultationsFailed = 0;
+            ImpulseBuys = 0;
         }
     }
 }

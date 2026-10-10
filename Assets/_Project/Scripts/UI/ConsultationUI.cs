@@ -133,7 +133,8 @@ namespace NaSvyazi.UI
             UIFactory.SetSize(requestText, height: 80f);
 
             TextMeshProUGUI rule = UIFactory.CreateText("Rule", window.transform,
-                "Подберите тариф, который закрывает потребность клиента и при этом не заставляет его переплачивать.",
+                "Подберите тариф, который закрывает потребность клиента и не заставляет переплачивать. " +
+                "Для подключения нужен стартовый пакет SIM на полке.",
                 20f, UIFactory.MutedTextColor);
             UIFactory.SetSize(rule, height: 34f);
 

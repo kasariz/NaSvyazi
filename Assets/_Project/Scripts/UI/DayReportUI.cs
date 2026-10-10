@@ -53,7 +53,8 @@ namespace NaSvyazi.UI
 
             StringBuilder s = new StringBuilder();
             s.AppendLine($"Обслужено покупателей:  {report.customersServed}");
-            s.AppendLine($"Продано товаров:  {report.itemsSold}");
+            s.AppendLine($"Продано товаров:  {report.itemsSold}" +
+                         (report.impulseBuys > 0 ? $"  (со стойки у кассы: {report.impulseBuys})" : ""));
             s.AppendLine($"Оплат картой / наличными:  {report.cardPayments} / {report.cashPayments}");
             s.AppendLine($"Отказались из-за цены:  {report.priceRefusals}");
             s.AppendLine($"Не нашли нужный товар:  {report.outOfStock}");

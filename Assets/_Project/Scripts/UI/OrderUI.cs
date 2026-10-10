@@ -421,7 +421,7 @@ namespace NaSvyazi.UI
                 "Купленная мебель сразу появляется перед вами: выберите место прицелом, R — повернуть, ЛКМ — поставить. " +
                 "Стоящую мебель можно переставить: наведите прицел на каркас и нажмите E.",
                 20f, UIFactory.MutedTextColor, TextAlignmentOptions.TopLeft);
-            UIFactory.SetSize(hint, height: 60f);
+            UIFactory.SetSize(hint, height: 50f);
 
             if (furnitureCatalog == null)
             {
@@ -435,7 +435,7 @@ namespace NaSvyazi.UI
                 {
                     if (f == null) continue;
                     FurnitureData data = f;
-                    furnitureRows[f] = CreateActionRow(panel, f.displayName, f.description, () => BuyFurniture(data));
+                    furnitureRows[f] = CreateActionRow(panel, f.displayName, f.description, () => BuyFurniture(data), 60f);
                 }
 
             RectTransform spacer = UIFactory.CreateRect("Spacer", panel);
@@ -461,11 +461,12 @@ namespace NaSvyazi.UI
             UIFactory.SetSize(spacer, flexibleHeight: 1f);
         }
 
-        private ActionRow CreateActionRow(Transform parent, string name, string description, System.Action onClick)
+        private ActionRow CreateActionRow(Transform parent, string name, string description, System.Action onClick,
+            float height = 84f)
         {
             Image row = UIFactory.CreatePanel($"Row_{name}", parent, UIFactory.RowColor);
             UIFactory.AddHorizontalLayout(row.gameObject, 16f, 16);
-            UIFactory.SetSize(row, height: 84f);
+            UIFactory.SetSize(row, height: height);
 
             TextMeshProUGUI title = UIFactory.CreateText("Name", row.transform, name, 26f, UIFactory.TextColor);
             title.fontStyle = FontStyles.Bold;

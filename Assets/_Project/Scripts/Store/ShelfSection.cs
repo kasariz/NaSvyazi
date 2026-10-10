@@ -38,6 +38,11 @@ namespace NaSvyazi.Store
         [Tooltip("Ценник/надпись на краю полки (необязательно)")]
         [SerializeField] private TMP_Text label;
 
+        [Tooltip("Секция витрины: принимает только смартфоны и аудио")]
+        [SerializeField] private bool showcase;
+
+        public bool IsShowcase => showcase;
+
         private readonly List<Vector3> slots = new List<Vector3>();
         private readonly List<GameObject> items = new List<GameObject>();
         private ProductData product;
@@ -89,6 +94,7 @@ namespace NaSvyazi.Store
         public bool CanPlace(ProductData item)
         {
             if (item == null || item.size.y > height) return false;
+            if (item.category.RequiresShowcase() != showcase) return false;
             if (IsEmpty) return true;
             return item == product && !IsFull;
         }
@@ -164,7 +170,13 @@ namespace NaSvyazi.Store
         public string GetPrimaryPrompt(PlayerInteractor interactor)
         {
             ProductBox box = interactor.Carry.Held as ProductBox;
-            if (box == null || box.IsEmpty || !CanPlace(box.Product)) return null;
+            if (box == null || box.IsEmpty) return null;
+
+            // Подсказка, почему нельзя: товар не для этой полки.
+            if (box.Product.category.RequiresShowcase() && !showcase) return "Этот товар выставляется только в витрину";
+            if (!box.Product.category.RequiresShowcase() && showcase) return "В витрину — только смартфоны и аудио";
+
+            if (!CanPlace(box.Product)) return null;
             return $"Выложить: {box.Product.displayName}";
         }
 
