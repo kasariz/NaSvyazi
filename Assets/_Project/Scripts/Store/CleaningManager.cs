@@ -91,11 +91,11 @@ namespace NaSvyazi.Store
             go.name = "DirtSpot";
             Destroy(go.GetComponent<Collider>());
             go.transform.SetPositionAndRotation(position, Quaternion.Euler(90f, Random.Range(0f, 360f), 0f));
-            float size = Random.Range(0.45f, 0.85f);
-            go.transform.localScale = new Vector3(size, size * Random.Range(0.7f, 1f), 1f);
+            float size = Random.Range(0.6f, 1.0f); // текстура с прозрачными краями — квад чуть больше
+            go.transform.localScale = new Vector3(size, size * Random.Range(0.8f, 1f), 1f);
 
             Renderer renderer = go.GetComponent<Renderer>();
-            renderer.sharedMaterial = dirtMaterial;
+            renderer.sharedMaterial = SplatMaterial(Random.Range(0, SplatVariants));
             renderer.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off;
 
             // Тонкий триггер — по нему наводится прицел (покупатели и игрок проходят сквозь).
@@ -106,6 +106,109 @@ namespace NaSvyazi.Store
             DirtSpot spot = go.AddComponent<DirtSpot>();
             spot.Init(renderer, dirtMaterial.color);
             spots.Add(spot);
+        }
+
+        // ----------------------------------------------------------------
+        // Внешний вид пятна
+        // ----------------------------------------------------------------
+
+        private const int SplatVariants = 4;
+        private const int SplatSize = 128;
+        private static readonly int BaseMapId = Shader.PropertyToID("_BaseMap");
+        private static readonly int MainTexId = Shader.PropertyToID("_MainTex");
+        private Material[] splatMaterials;
+
+        /// <summary>
+        /// Материал пятна с текстурой «лужи грязи»: неровный край из нескольких клякс, брызги вокруг,
+        /// следы подошвы и разводы внутри. Текстуры рисуются кодом при первом пятне (4 варианта),
+        /// поэтому пятна больше не выглядят квадратами.
+        /// </summary>
+        private Material SplatMaterial(int variant)
+        {
+            if (splatMaterials == null) splatMaterials = new Material[SplatVariants];
+            if (splatMaterials[variant] != null) return splatMaterials[variant];
+
+            Material m = new Material(dirtMaterial) { name = $"Dirt_Splat_{variant}" };
+            Texture2D tex = GenerateSplat(1000 + variant * 37);
+            if (m.HasProperty(BaseMapId)) m.SetTexture(BaseMapId, tex);
+            if (m.HasProperty(MainTexId)) m.SetTexture(MainTexId, tex);
+            splatMaterials[variant] = m;
+            return m;
+        }
+
+        private static Texture2D GenerateSplat(int seed)
+        {
+            System.Random rnd = new System.Random(seed);
+            float R() => (float)rnd.NextDouble();
+
+            // Кляксы: основная в центре и несколько поменьше вокруг.
+            int blobs = 5 + rnd.Next(4);
+            Vector3[] b = new Vector3[blobs]; // x, y — центр (0…1), z — радиус
+            b[0] = new Vector3(0.5f, 0.5f, 0.22f + R() * 0.05f);
+            for (int i = 1; i < blobs; i++)
+            {
+                float a = R() * Mathf.PI * 2f, d = 0.08f + R() * 0.17f;
+                b[i] = new Vector3(0.5f + Mathf.Cos(a) * d, 0.5f + Mathf.Sin(a) * d, 0.07f + R() * 0.1f);
+            }
+
+            // Брызги — маленькие капли подальше от центра.
+            int drops = 10 + rnd.Next(8);
+            Vector3[] dr = new Vector3[drops];
+            for (int i = 0; i < drops; i++)
+            {
+                float a = R() * Mathf.PI * 2f, d = 0.3f + R() * 0.16f;
+                dr[i] = new Vector3(0.5f + Mathf.Cos(a) * d, 0.5f + Mathf.Sin(a) * d, 0.012f + R() * 0.025f);
+            }
+
+            float ox = R() * 100f, oy = R() * 100f;
+            float footAngle = R() * Mathf.PI;
+            Vector2 footDir = new Vector2(Mathf.Cos(footAngle), Mathf.Sin(footAngle));
+
+            Texture2D tex = new Texture2D(SplatSize, SplatSize, TextureFormat.RGBA32, true)
+            {
+                wrapMode = TextureWrapMode.Clamp,
+                name = "DirtSplat"
+            };
+            Color32[] px = new Color32[SplatSize * SplatSize];
+
+            for (int y = 0; y < SplatSize; y++)
+            for (int x = 0; x < SplatSize; x++)
+            {
+                float u = (x + 0.5f) / SplatSize, v = (y + 0.5f) / SplatSize;
+
+                // Поле клякс (metaballs) с неровным краем от шума.
+                float field = 0f;
+                foreach (Vector3 c in b)
+                {
+                    float dx = u - c.x, dy = v - c.y;
+                    field += c.z * c.z / (dx * dx + dy * dy + 0.0004f);
+                }
+                float edgeNoise = Mathf.PerlinNoise(ox + u * 9f, oy + v * 9f) * 0.9f + 0.55f;
+                float alpha = Mathf.SmoothStep(0f, 1f, Mathf.Clamp01((field * edgeNoise - 1f) * 1.6f));
+
+                foreach (Vector3 c in dr)
+                {
+                    float d = Vector2.Distance(new Vector2(u, v), new Vector2(c.x, c.y));
+                    alpha = Mathf.Max(alpha, Mathf.Clamp01((c.z - d) / (c.z * 0.4f)));
+                }
+
+                // Внутри — разводы (темнее/светлее) и пара отпечатков подошвы поперёк лужи.
+                float streak = Mathf.PerlinNoise(ox + u * 22f, oy + v * 22f);
+                float shade = 0.75f + streak * 0.45f;
+                Vector2 rel = new Vector2(u - 0.5f, v - 0.5f);
+                float along = Vector2.Dot(rel, footDir), across = Vector2.Dot(rel, new Vector2(-footDir.y, footDir.x));
+                float tread = Mathf.Abs(across) < 0.07f && Mathf.Abs(along) < 0.16f
+                    && Mathf.Repeat(along * 40f, 1f) < 0.45f ? 0.75f : 1f;
+                shade *= tread;
+
+                alpha *= 0.65f + 0.35f * streak;
+                byte g = (byte)(Mathf.Clamp01(shade) * 255f);
+                px[y * SplatSize + x] = new Color32(g, g, g, (byte)(Mathf.Clamp01(alpha) * 255f));
+            }
+
+            tex.SetPixels32(px);
+            tex.Apply(true, true);
+            return tex;
         }
 
         public void OnCleaned(DirtSpot spot)

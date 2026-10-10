@@ -7,6 +7,46 @@
 Берите паки с лицензией **CC0** — их можно использовать в ВКР и в магазине приложений без указания автора.
 С лицензией **CC-BY** тоже можно, но автора нужно указать (например, в разделе «Авторы» в меню).
 
+## Что уже подключено (версия 0.3.0)
+
+**Звуки** (`Assets/_Project/Resources/Sounds/`):
+
+| Ключ | Файлы | Источник |
+|---|---|---|
+| scan | `scan.wav` | BigSoundBank — писк кассы (ID 1417) |
+| ambience | `ambience.wav` | BigSoundBank — супермаркет (ID 0578), потоковая загрузка |
+| notify | `notify.ogg` | Kenney Interface — bong_001 |
+| purchase | `purchase_1…4` | Kenney Interface — confirmation |
+| click | `click_1…5` | Kenney Interface — click |
+| error | `error_1…4` | Kenney Interface — error_001…004 |
+| scrub | `scrub_1…5` | Kenney Interface — scratch |
+| step | `step_1…5` | Kenney Impact — footstep_concrete |
+| pickup | `pickup_1…5` | Kenney Impact — impactSoft_medium |
+| place | `place_1…5` | Kenney Impact — impactGeneric_light |
+| doorbell | `doorbell_1…5` | Kenney Impact — impactBell_heavy |
+
+Остальные звуки паков лежат в `Assets/_Project/Art/Audio/Library/` — они не попадают в сборку.
+Чтобы заменить звук, переименуйте файл из библиотеки по ключу и переложите в `Resources/Sounds`.
+
+**Модели** (`Assets/_Project/Art/Models/`):
+
+| Куда | Файл | Источник |
+|---|---|---|
+| Box | `cardboardBoxClosed.fbx` | Kenney Furniture Kit |
+| Furniture | `plant.fbx` (pottedPlant), `rug.fbx` (rugRectangle), `waiting_chairs.fbx` (loungeDesignSofa) | Kenney Furniture Kit |
+| Products | `phone_basic.obj` (Smartphone), `phone_mid.obj` (1327 iPhone), `earbuds.obj` (Headphones), `speaker.obj` (Speaker) | Poly Pizza |
+
+Остальные модели паков — в `Art/Models/Library/KenneyFurniture` и `Library/KenneyMiniMarket`
+(команда подключения их не трогает). Чтобы использовать другую, скопируйте её в нужную папку
+под именем по таблице ниже.
+
+**Не хватает текстур:** `phone_basic.obj` ссылается на `endesga64_1024.png`, а `phone_mid.obj` — на
+`1327 iPhone.png`. Их нет в репозитории, поэтому эти смартфоны будут белыми. Положите PNG из скачанных
+архивов в `Art/Models/Products/` рядом с `.mtl` и запустите команду подключения ещё раз.
+
+**Лицензии:** Kenney и BigSoundBank — CC0. У моделей с Poly Pizza проверьте лицензию на странице модели:
+при CC-BY автора нужно указать в титрах.
+
 ---
 
 ## 1. Звуки
@@ -92,8 +132,9 @@
    - ставит её на пол и убирает её коллайдеры — столкновения, полки, подсветка и надписи остаются прежними,
      поэтому ничего в механике не ломается;
    - на коробке оставляет цветную полосу товара — коробки по-прежнему различимы издалека.
-3. Если модель стоит задом наперёд — переименуйте файл с поворотом: `phone_basic@180.fbx`
-   (или `@90`, `@-90`) и запустите команду ещё раз.
+3. Поворот подбирается автоматически (лежащий смартфон ставится на ребро). Если модель всё же стоит
+   задом наперёд или боком — задайте поворот в имени файла и запустите команду ещё раз:
+   `phone_basic@180.obj` (вокруг вертикали), `speaker@x-90.obj`, `phone_mid@x-90y180.obj`.
 4. Не понравилось — **На связи → 3D-модели → Вернуть простые модели** (файлы моделей не удаляются).
 
 **Ограничение:** стеллажи, витрина, стойка у кассы и складской стеллаж не заменяются — места товаров

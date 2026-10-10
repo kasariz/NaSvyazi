@@ -139,19 +139,34 @@ namespace NaSvyazi.Player
             // Предмет со своими хватами (швабра — за черенок).
             if (carry.Held.TryGetGrips(out leftGrip, out rightGrip)) return true;
 
-            // Бока предмета по его габаритам (в плоскости экрана).
-            Bounds bounds = new Bounds(carry.Held.transform.position, Vector3.zero);
+            // Бока предмета — по его габаритам в осях камеры. Раньше брались мировые габариты (AABB):
+            // при повороте героя они «раздувались», и руки разъезжались от коробки.
+            bool any = false;
+            Bounds local = new Bounds();
             foreach (Renderer r in carry.Held.GetComponentsInChildren<Renderer>())
-                if (r.enabled) bounds.Encapsulate(r.bounds);
+            {
+                if (!r.enabled) continue;
+                MeshFilter mf = r.GetComponent<MeshFilter>();
+                if (mf == null || mf.sharedMesh == null) continue;
+                Bounds mb = mf.sharedMesh.bounds;
+                for (int i = 0; i < 8; i++)
+                {
+                    Vector3 corner = mb.center + Vector3.Scale(mb.extents,
+                        new Vector3((i & 1) == 0 ? -1 : 1, (i & 2) == 0 ? -1 : 1, (i & 4) == 0 ? -1 : 1));
+                    Vector3 p = cam.InverseTransformPoint(r.transform.TransformPoint(corner));
+                    if (!any) { local = new Bounds(p, Vector3.zero); any = true; }
+                    else local.Encapsulate(p);
+                }
+            }
+            if (!any) return false;
 
-            Vector3 side = cam.right * Mathf.Max(0.06f, Vector3.Dot(bounds.extents, Abs(cam.right)));
-            Vector3 center = bounds.center - cam.up * 0.02f;
-            leftGrip = center - side;
-            rightGrip = center + side;
+            // Хват — по бокам, чуть ниже середины и ближе к передней грани (как держат коробку снизу-сбоку).
+            float halfWidth = Mathf.Max(0.06f, local.extents.x);
+            Vector3 c = new Vector3(local.center.x, local.center.y - local.extents.y * 0.3f, local.center.z - local.extents.z * 0.15f);
+            leftGrip = cam.TransformPoint(c - new Vector3(halfWidth, 0f, 0f));
+            rightGrip = cam.TransformPoint(c + new Vector3(halfWidth, 0f, 0f));
             return true;
         }
-
-        private static Vector3 Abs(Vector3 v) => new Vector3(Mathf.Abs(v.x), Mathf.Abs(v.y), Mathf.Abs(v.z));
 
         /// <summary>Рукав от плеча к кисти, манжета и кисть у цели.</summary>
         private Vector3 camRight => cam.right;

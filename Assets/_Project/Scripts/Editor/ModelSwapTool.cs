@@ -18,7 +18,7 @@ namespace NaSvyazi.EditorTools
     ///   Assets/_Project/Art/Models/Products/  — phone_basic.fbx, earbuds.fbx, case.fbx …
     ///   Assets/_Project/Art/Models/Furniture/ — plant.fbx, water_cooler.fbx, waiting_chairs.fbx …
     ///   Assets/_Project/Art/Models/Box/       — один файл коробки (любое имя).
-    /// Суффикс «@угол» поворачивает модель вокруг вертикали: phone_basic@180.fbx.
+    /// Суффикс «@угол» задаёт поворот вручную: phone_basic@180.obj (вокруг вертикали), speaker@x-90.obj, phone_mid@x-90y180.obj.
     ///
     /// Модель автоматически масштабируется в габариты исходной (товар — в ProductData.size,
     /// мебель — в размер своей простой модели), ставится на пол и лишается коллайдеров:
@@ -85,7 +85,7 @@ namespace NaSvyazi.EditorTools
 
         private static int ApplyProducts(StringBuilder log)
         {
-            Dictionary<string, (GameObject model, float yaw, string path)> models = FindModels(ProductsFolder);
+            Dictionary<string, (GameObject model, Vector3? rotation, string path)> models = FindModels(ProductsFolder);
             if (models.Count == 0) return 0;
             EnsureFolder(ProductPrefabsFolder);
 
@@ -96,7 +96,7 @@ namespace NaSvyazi.EditorTools
 
                 // Обёртка: опорная точка — центр нижней грани, модель вписана в габариты товара.
                 GameObject root = new GameObject("Product_" + p.id);
-                Fit(m.model, root.transform, p.size, Vector3.zero, m.yaw);
+                Fit(m.model, root.transform, p.size, Vector3.zero, m.rotation, true);
                 string path = $"{ProductPrefabsFolder}/Product_{p.id}.prefab";
                 GameObject prefab = PrefabUtility.SaveAsPrefabAsset(root, path);
                 Object.DestroyImmediate(root);
@@ -119,7 +119,7 @@ namespace NaSvyazi.EditorTools
 
         private static int ApplyFurniture(StringBuilder log)
         {
-            Dictionary<string, (GameObject model, float yaw, string path)> models = FindModels(FurnitureFolder);
+            Dictionary<string, (GameObject model, Vector3? rotation, string path)> models = FindModels(FurnitureFolder);
             if (models.Count == 0) return 0;
 
             int count = 0;
@@ -150,7 +150,7 @@ namespace NaSvyazi.EditorTools
                         marker.hiddenRenderers.Add(r);
                     }
 
-                    Fit(m.model, root.transform, b.size, new Vector3(b.center.x, b.min.y, b.center.z), m.yaw);
+                    Fit(m.model, root.transform, b.size, new Vector3(b.center.x, b.min.y, b.center.z), m.rotation, false);
                 });
                 log.AppendLine($"• мебель «{f.displayName}» ← {m.path}");
                 count++;
@@ -164,9 +164,9 @@ namespace NaSvyazi.EditorTools
 
         private static bool ApplyBox(StringBuilder log)
         {
-            Dictionary<string, (GameObject model, float yaw, string path)> models = FindModels(BoxFolder);
+            Dictionary<string, (GameObject model, Vector3? rotation, string path)> models = FindModels(BoxFolder);
             if (models.Count == 0) return false;
-            var m = new List<(GameObject model, float yaw, string path)>(models.Values)[0];
+            var m = new List<(GameObject model, Vector3? rotation, string path)>(models.Values)[0];
 
             bool done = false;
             EditPrefab(BoxPrefabPath, root =>
@@ -184,7 +184,7 @@ namespace NaSvyazi.EditorTools
                 marker.hiddenRenderers.Add(r);
                 r.enabled = false; // коллайдер и окраска полосы остаются от простой коробки
 
-                Fit(m.model, root.transform, size, bottom, m.yaw);
+                Fit(m.model, root.transform, size, bottom, m.rotation, false);
                 done = true;
             });
             if (done) log.AppendLine($"• коробка ← {m.path} (цветная полоса товара остаётся поверх модели)");
@@ -221,9 +221,12 @@ namespace NaSvyazi.EditorTools
         /// <summary>
         /// Вставить модель в parent и вписать в габариты size так, чтобы центр нижней грани
         /// оказался в точке bottomCenter (локальные координаты parent). Пропорции сохраняются.
-        /// Если модель «лежит поперёк» (ширина и глубина перепутаны), она поворачивается на 90°.
+        /// rotation — поворот из имени файла («@x90y180»); если его нет, поворот подбирается сам:
+        /// из поворотов на 90° выбирается тот, при котором модель лучше всего заполняет габариты
+        /// (для товаров — в том числе «поставить на ребро» лежащий смартфон; мебель только поворачивается вокруг вертикали).
         /// </summary>
-        private static void Fit(GameObject source, Transform parent, Vector3 size, Vector3 bottomCenter, float yaw)
+        private static void Fit(GameObject source, Transform parent, Vector3 size, Vector3 bottomCenter,
+            Vector3? rotation, bool allowTilt)
         {
             Transform holder = new GameObject(ImportedModel.ChildName).transform;
             holder.SetParent(parent, false);
@@ -233,19 +236,26 @@ namespace NaSvyazi.EditorTools
             instance.transform.localPosition = Vector3.zero;
             instance.transform.localScale = Vector3.one;
 
-            instance.transform.localRotation = Quaternion.Euler(0f, yaw, 0f);
-            Bounds b = LocalBounds(holder, instance.GetComponentsInChildren<Renderer>(true));
-            bool targetWide = size.x >= size.z, modelWide = b.size.x >= b.size.z;
-            if (targetWide != modelWide && Mathf.Abs(size.x - size.z) > 0.01f && Mathf.Abs(b.size.x - b.size.z) > 0.001f)
-            {
-                instance.transform.localRotation = Quaternion.Euler(0f, yaw + 90f, 0f);
-                b = LocalBounds(holder, instance.GetComponentsInChildren<Renderer>(true));
-            }
+            Vector3[] candidates = rotation.HasValue
+                ? new[] { rotation.Value }
+                : allowTilt
+                    ? new[] { Vector3.zero, new Vector3(0f, 90f, 0f), new Vector3(-90f, 0f, 0f), new Vector3(-90f, 90f, 0f),
+                              new Vector3(0f, 0f, 90f), new Vector3(0f, 90f, 90f) }
+                    : new[] { Vector3.zero, new Vector3(0f, 90f, 0f) };
 
-            float scale = float.MaxValue;
-            for (int i = 0; i < 3; i++)
-                if (size[i] > 0.001f && b.size[i] > 0.0001f) scale = Mathf.Min(scale, size[i] / b.size[i]);
-            if (scale == float.MaxValue || scale <= 0f) scale = 1f;
+            Vector3 best = candidates[0];
+            float bestFill = -1f;
+            foreach (Vector3 euler in candidates)
+            {
+                instance.transform.localRotation = Quaternion.Euler(euler);
+                Bounds cb = LocalBounds(holder, instance.GetComponentsInChildren<Renderer>(true));
+                float fill = Fill(cb.size, size);
+                if (fill > bestFill + 0.02f) { bestFill = fill; best = euler; } // при равенстве — более простой поворот
+            }
+            instance.transform.localRotation = Quaternion.Euler(best);
+            Bounds b = LocalBounds(holder, instance.GetComponentsInChildren<Renderer>(true));
+
+            float scale = ScaleToFit(b.size, size);
             instance.transform.localScale = Vector3.one * scale;
 
             b = LocalBounds(holder, instance.GetComponentsInChildren<Renderer>(true));
@@ -259,6 +269,27 @@ namespace NaSvyazi.EditorTools
             }
             foreach (Renderer r in instance.GetComponentsInChildren<Renderer>(true))
                 r.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.On;
+        }
+
+        private static float ScaleToFit(Vector3 model, Vector3 target)
+        {
+            float scale = float.MaxValue;
+            for (int i = 0; i < 3; i++)
+                if (target[i] > 0.001f && model[i] > 0.0001f) scale = Mathf.Min(scale, target[i] / model[i]);
+            return scale == float.MaxValue || scale <= 0f ? 1f : scale;
+        }
+
+        /// <summary>Какую долю объёма габаритов займёт модель после масштабирования (0…1).</summary>
+        private static float Fill(Vector3 model, Vector3 target)
+        {
+            float s = ScaleToFit(model, target);
+            float v = 1f, t = 1f;
+            for (int i = 0; i < 3; i++)
+            {
+                v *= Mathf.Max(0.001f, model[i] * s);
+                t *= Mathf.Max(0.001f, target[i]);
+            }
+            return v / t;
         }
 
         /// <summary>Габариты рендереров в локальных координатах space (по вершинам ограничивающих коробок мешей).</summary>
@@ -318,9 +349,9 @@ namespace NaSvyazi.EditorTools
         }
 
         /// <summary>Модели в папке: ключ — имя файла до «@» (в нижнем регистре), yaw — угол после «@».</summary>
-        private static Dictionary<string, (GameObject model, float yaw, string path)> FindModels(string folder)
+        private static Dictionary<string, (GameObject model, Vector3? rotation, string path)> FindModels(string folder)
         {
-            var result = new Dictionary<string, (GameObject, float, string)>();
+            var result = new Dictionary<string, (GameObject, Vector3?, string)>();
             if (!AssetDatabase.IsValidFolder(folder)) return result;
 
             foreach (string guid in AssetDatabase.FindAssets("t:GameObject", new[] { folder }))
@@ -330,17 +361,37 @@ namespace NaSvyazi.EditorTools
                 if (go == null || go.GetComponentInChildren<Renderer>(true) == null) continue;
 
                 string name = Path.GetFileNameWithoutExtension(path);
-                float yaw = 0f;
+                Vector3? rotation = null;
                 int at = name.IndexOf('@');
                 if (at >= 0)
                 {
-                    float.TryParse(name.Substring(at + 1), System.Globalization.NumberStyles.Float,
-                        System.Globalization.CultureInfo.InvariantCulture, out yaw);
+                    rotation = ParseRotation(name.Substring(at + 1));
                     name = name.Substring(0, at);
                 }
-                result[name.Trim().ToLowerInvariant()] = (go, yaw, path);
+                result[name.Trim().ToLowerInvariant()] = (go, rotation, path);
             }
             return result;
+        }
+
+        /// <summary>
+        /// Поворот из имени файла: «180» — вокруг вертикали; «x90», «y180», «z-90» и их сочетания («x-90y180»).
+        /// </summary>
+        private static Vector3 ParseRotation(string text)
+        {
+            Vector3 euler = Vector3.zero;
+            System.Text.RegularExpressions.MatchCollection parts =
+                System.Text.RegularExpressions.Regex.Matches(text.ToLowerInvariant(), @"([xyz]?)(-?\d+(?:\.\d+)?)");
+            foreach (System.Text.RegularExpressions.Match m in parts)
+            {
+                float v = float.Parse(m.Groups[2].Value, System.Globalization.CultureInfo.InvariantCulture);
+                switch (m.Groups[1].Value)
+                {
+                    case "x": euler.x = v; break;
+                    case "z": euler.z = v; break;
+                    default: euler.y = v; break;
+                }
+            }
+            return euler;
         }
 
         private static List<T> LoadAll<T>(string folder) where T : Object
