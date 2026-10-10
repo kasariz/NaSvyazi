@@ -184,7 +184,7 @@ namespace NaSvyazi.EditorTools
                 marker.hiddenRenderers.Add(r);
                 r.enabled = false; // коллайдер и окраска полосы остаются от простой коробки
 
-                Fit(m.model, root.transform, size, bottom, m.rotation, false);
+                Fit(m.model, root.transform, size, bottom, m.rotation, false, true);
                 done = true;
             });
             if (done) log.AppendLine($"• коробка ← {m.path} (цветная полоса товара остаётся поверх модели)");
@@ -226,7 +226,7 @@ namespace NaSvyazi.EditorTools
         /// (для товаров — в том числе «поставить на ребро» лежащий смартфон; мебель только поворачивается вокруг вертикали).
         /// </summary>
         private static void Fit(GameObject source, Transform parent, Vector3 size, Vector3 bottomCenter,
-            Vector3? rotation, bool allowTilt)
+            Vector3? rotation, bool allowTilt, bool stretch = false)
         {
             Transform holder = new GameObject(ImportedModel.ChildName).transform;
             holder.SetParent(parent, false);
@@ -255,11 +255,22 @@ namespace NaSvyazi.EditorTools
             instance.transform.localRotation = Quaternion.Euler(best);
             Bounds b = LocalBounds(holder, instance.GetComponentsInChildren<Renderer>(true));
 
-            float scale = ScaleToFit(b.size, size);
-            instance.transform.localScale = Vector3.one * scale;
+            if (stretch)
+            {
+                // Растянуть точно в габариты (коробка: модель занимает ровно место простой коробки,
+                // поэтому цветная полоса и надпись ложатся на неё, а не висят над ней).
+                Vector3 k = new Vector3(SafeRatio(size.x, b.size.x), SafeRatio(size.y, b.size.y), SafeRatio(size.z, b.size.z));
+                holder.localScale = k;
+                holder.localPosition = bottomCenter - Vector3.Scale(new Vector3(b.center.x, b.min.y, b.center.z), k);
+            }
+            else
+            {
+                float scale = ScaleToFit(b.size, size);
+                instance.transform.localScale = Vector3.one * scale;
 
-            b = LocalBounds(holder, instance.GetComponentsInChildren<Renderer>(true));
-            instance.transform.localPosition = bottomCenter - new Vector3(b.center.x, b.min.y, b.center.z);
+                b = LocalBounds(holder, instance.GetComponentsInChildren<Renderer>(true));
+                instance.transform.localPosition = bottomCenter - new Vector3(b.center.x, b.min.y, b.center.z);
+            }
 
             // Коллайдеры модели не нужны: у объекта уже есть свои. Если удалить нельзя — просто выключаем.
             foreach (Collider c in instance.GetComponentsInChildren<Collider>(true))
@@ -270,6 +281,8 @@ namespace NaSvyazi.EditorTools
             foreach (Renderer r in instance.GetComponentsInChildren<Renderer>(true))
                 r.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.On;
         }
+
+        private static float SafeRatio(float target, float model) => model > 0.0001f && target > 0.0001f ? target / model : 1f;
 
         private static float ScaleToFit(Vector3 model, Vector3 target)
         {

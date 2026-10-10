@@ -14,7 +14,8 @@ namespace NaSvyazi.Audio
         Click,    // нажатие кнопки интерфейса
         DoorBell, // звонок входной двери (пришёл покупатель)
         Error,    // ошибка / недостаточно денег
-        Scrub     // швабра по полу
+        Scrub,    // швабра по полу
+        Horn      // гудок грузовика доставки
     }
 
     /// <summary>
@@ -23,7 +24,7 @@ namespace NaSvyazi.Audio
     ///
     /// Замена на настоящие звуки: положите аудиофайлы в Assets/_Project/Resources/Sounds/
     /// с именами по ключу эффекта — scan, purchase, notify, place, pickup, click, doorbell, error,
-    /// scrub, step, music, ambience. Несколько вариантов одного звука — с суффиксом номера
+    /// scrub, horn, step, music, ambience. Несколько вариантов одного звука — с суффиксом номера
     /// (step_1, step_2, step_3): при каждом проигрывании выбирается случайный.
     /// Звук без файла остаётся синтезированным. Подробности — в SOUNDS_AND_MODELS.md.
     /// </summary>
@@ -243,6 +244,11 @@ namespace NaSvyazi.Audio
             // Ошибка: два низких сигнала.
             float[] e1 = Tone(220f, 0.12f, Wave.Square, 0.005f, 0.03f, 0.2f);
             clips[Sfx.Error] = Make("error", Mix(e1, e1, 0.16f));
+
+            // Гудок грузовика: два коротких аккорда квадратной волной.
+            float[] beep = Mix(Tone(392f, 0.18f, Wave.Square, 0.01f, 0.04f, 0.18f),
+                Tone(494f, 0.18f, Wave.Square, 0.01f, 0.04f, 0.14f), 0f);
+            clips[Sfx.Horn] = Make("horn", Mix(beep, beep, 0.26f));
 
             // Швабра: короткий мягкий «шорх».
             clips[Sfx.Scrub] = Make("scrub", LowPass(Noise(0.18f, 0.45f), 0.2f));

@@ -22,9 +22,10 @@ namespace NaSvyazi.Store
     }
 
     /// <summary>
-    /// Доставка заказов: через заданное время у зоны доставки появляются
-    /// коробки с товаром. Коробки ставятся сеткой и штабелем, занятые места
-    /// пропускаются, чтобы новые коробки не появлялись внутри старых.
+    /// Доставка заказов: по дороге приезжает грузовик, останавливается напротив ворот склада,
+    /// сигналит, коробки по одной появляются в зоне доставки, и грузовик уезжает.
+    /// Коробки ставятся сеткой и штабелем, занятые места пропускаются,
+    /// чтобы новые коробки не появлялись внутри старых.
     /// </summary>
     public class DeliveryService : MonoBehaviour
     {
@@ -33,6 +34,20 @@ namespace NaSvyazi.Store
 
         [Tooltip("Время доставки в секундах")]
         [SerializeField] private float deliveryTime = 5f;
+
+        [Header("Грузовик")]
+        [Tooltip("Полоса дороги, по которой едет грузовик (координата Z)")]
+        [SerializeField] private float roadLaneZ = -19.6f;
+        [Tooltip("Откуда приезжает и куда уезжает (координата X)")]
+        [SerializeField] private float roadStartX = 30f;
+        [SerializeField] private float roadEndX = -40f;
+        [SerializeField] private float roadY = -0.1f;
+        [Tooltip("Сколько секунд грузовик едет до склада")]
+        [SerializeField] private float driveInTime = 4f;
+        [Tooltip("Пауза между коробками при выгрузке, сек")]
+        [SerializeField] private float unloadInterval = 0.18f;
+
+        private bool truckBusy;
 
         [Header("Раскладка коробок в зоне доставки")]
         [SerializeField] private int columns = 3;
@@ -63,7 +78,22 @@ namespace NaSvyazi.Store
 
         private IEnumerator DeliverRoutine(List<DeliveryItem> items)
         {
-            yield return new WaitForSeconds(DeliveryTime);
+            // Грузовик выезжает так, чтобы приехать к сроку доставки.
+            float drive = Mathf.Min(driveInTime, DeliveryTime);
+            yield return new WaitForSeconds(Mathf.Max(0f, DeliveryTime - drive));
+
+            // Один грузовик за раз: следующий заказ ждёт, пока предыдущий уедет.
+            while (truckBusy) yield return null;
+            truckBusy = true;
+
+            Vector3 stop = new Vector3(deliveryPoint.position.x, roadY, roadLaneZ);
+            Vector3 start = new Vector3(roadStartX, roadY, roadLaneZ);
+            Vector3 exit = new Vector3(roadEndX, roadY, roadLaneZ);
+            DeliveryTruck truck = DeliveryTruck.Create(start, (exit - start).normalized);
+
+            yield return truck.DriveTo(stop, drive, false, true);
+            truck.Honk();
+            yield return new WaitForSeconds(0.4f);
 
             int slot = 0;
             int delivered = 0;
@@ -78,8 +108,11 @@ namespace NaSvyazi.Store
                         ProductBox box = Instantiate(boxPrefab, position, deliveryPoint.rotation);
                         box.name = $"Box_{item.product.id}";
                         box.Fill(item.product, item.product.unitsPerBox);
+                        box.gameObject.AddComponent<PopIn>();
+                        Audio.SoundManager.Play(Audio.Sfx.Pickup, 0.35f);
                         delivered++;
                         slot++;
+                        yield return new WaitForSeconds(unloadInterval);
                     }
                     else
                     {
@@ -91,6 +124,11 @@ namespace NaSvyazi.Store
             string message = $"Доставка прибыла: коробок — {delivered}";
             if (notPlaced > 0) message += $" (не хватило места для {notPlaced})";
             GameEvents.Notify(message);
+
+            yield return new WaitForSeconds(0.6f);
+            truckBusy = false; // следующий грузовик может выезжать, пока этот уезжает
+            yield return truck.DriveTo(exit, 6f, true, false);
+            Destroy(truck.gameObject);
         }
 
         /// <summary>Найти ближайшее свободное место, начиная с номера slot.</summary>
