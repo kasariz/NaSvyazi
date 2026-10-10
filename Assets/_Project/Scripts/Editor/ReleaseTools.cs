@@ -14,7 +14,7 @@ namespace NaSvyazi.EditorTools
     public static class ReleaseTools
     {
         /// <summary>Версия релиза. Перед следующим релизом увеличьте (0.1.1, 0.2.0 …).</summary>
-        public const string Version = "0.3.0";
+        public const string Version = "0.4.0";
 
         private const string ProductName = "На связи";
         private const string CompanyName = "NaSvyazi";

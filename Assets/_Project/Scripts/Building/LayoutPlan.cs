@@ -15,6 +15,9 @@ namespace NaSvyazi.Building
         public string name;
         public string description;
         public int price;
+
+        /// <summary>Цена с учётом сложности.</summary>
+        public int Price => Core.GameDifficulty.ScalePrice(price);
         public int minLevel;
         public int extraRent;   // прибавка к ежедневной аренде
         public Rect[] areas;    // новые участки пола (X, Z), где можно ставить мебель

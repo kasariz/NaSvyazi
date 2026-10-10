@@ -70,6 +70,7 @@ namespace NaSvyazi.Economy
         private void Gain(int amount, string reason)
         {
             if (amount <= 0) return;
+            amount = Mathf.Max(1, Mathf.RoundToInt(amount * GameDifficulty.XpMultiplier));
             int masteryBefore = MasteryPoints;
             Xp += amount;
 

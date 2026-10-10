@@ -1,3 +1,4 @@
+using System.Collections.Generic;
 using NaSvyazi.Audio;
 using NaSvyazi.Core;
 using NaSvyazi.Economy;
@@ -39,6 +40,8 @@ namespace NaSvyazi.UI
         private TextMeshProUGUI levelUpText;
         private float levelUpTimer;
         private int shownLevel = -1;
+        private readonly List<CanvasGroup> infoPanels = new List<CanvasGroup>();
+        private bool infoHidden;
         private float goalTimer;
         private string shownGoal;
         private float flashTimer;
@@ -81,6 +84,26 @@ namespace NaSvyazi.UI
             RefreshGoal();
             PlaceGoalPanel();
             UpdateLevelUpBanner();
+            HideInfoUnderWindows();
+        }
+
+        /// <summary>
+        /// Пока открыто окно (касса, терминал, консультация), боковые плашки HUD прячутся —
+        /// они рисуются поверх окон и перекрывали заголовки. Баланс и уведомления остаются.
+        /// </summary>
+        private void HideInfoUnderWindows()
+        {
+            bool hide = ModalWindow.IsAnyOpen;
+            if (hide == infoHidden) return;
+            infoHidden = hide;
+            foreach (CanvasGroup g in infoPanels) g.alpha = hide ? 0f : 1f;
+        }
+
+        private void AddInfo(Image panel)
+        {
+            CanvasGroup g = panel.gameObject.AddComponent<CanvasGroup>();
+            g.blocksRaycasts = false;
+            infoPanels.Add(g);
         }
 
         private void ShowLevelUp(int level)
@@ -244,12 +267,16 @@ namespace NaSvyazi.UI
                 UIFactory.TextColor, TextAlignmentOptions.MidlineRight);
             UIFactory.Stretch(reputationText.rectTransform, 14f);
 
+            AddInfo(reputationPanel);
+
             Image clockPanel = UIFactory.CreatePanel("Clock", canvas.transform,
                 new Color(0.08f, 0.09f, 0.11f, 0.8f));
             UIFactory.Place(clockPanel.rectTransform, new Vector2(0f, 1f), new Vector2(0f, 1f),
                 new Vector2(24f, -24f), new Vector2(460f, 60f));
             clockText = UIFactory.CreateText("ClockText", clockPanel.transform, "", 26f, UIFactory.TextColor);
             UIFactory.Stretch(clockText.rectTransform, 14f);
+
+            AddInfo(clockPanel);
 
             Image levelPanel = UIFactory.CreatePanel("Level", canvas.transform,
                 new Color(0.08f, 0.09f, 0.11f, 0.8f));
@@ -275,7 +302,10 @@ namespace NaSvyazi.UI
             levelText.fontSizeMax = 20f;
             UIFactory.Stretch(levelText.rectTransform, 12f);
 
+            AddInfo(levelPanel);
+
             eventPanel = UIFactory.CreatePanel("Event", canvas.transform, new Color(0.86f, 0.18f, 0.55f, 0.85f));
+            AddInfo(eventPanel);
             UIFactory.Place(eventPanel.rectTransform, new Vector2(0f, 1f), new Vector2(0f, 1f),
                 new Vector2(24f, -92f), new Vector2(460f, 70f));
             eventText = UIFactory.CreateText("EventText", eventPanel.transform, "", 22f, Color.white);
@@ -287,6 +317,7 @@ namespace NaSvyazi.UI
 
             // Цель игры — слева под плашкой события; высота подстраивается под текст.
             Image goalPanel = UIFactory.CreatePanel("Goal", canvas.transform, new Color(0.08f, 0.09f, 0.11f, 0.8f));
+            AddInfo(goalPanel);
             UIFactory.Place(goalPanel.rectTransform, new Vector2(0f, 1f), new Vector2(0f, 1f),
                 new Vector2(24f, -146f), new Vector2(460f, 0f));
             VerticalLayoutGroup goalLayout = UIFactory.AddVerticalLayout(goalPanel.gameObject, 0f, 12);
@@ -299,6 +330,7 @@ namespace NaSvyazi.UI
             goalPanel.gameObject.SetActive(false);
 
             skillPanel = UIFactory.CreatePanel("Skills", canvas.transform, new Color(0.08f, 0.09f, 0.11f, 0.8f));
+            AddInfo(skillPanel);
             UIFactory.Place(skillPanel.rectTransform, new Vector2(1f, 1f), new Vector2(1f, 1f),
                 new Vector2(-24f, -200f), new Vector2(300f, 50f));
             skillPanel.rectTransform.pivot = new Vector2(1f, 1f);

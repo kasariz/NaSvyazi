@@ -62,6 +62,9 @@ namespace NaSvyazi.Store
         private ProductData product;
 
         public ProductData Product => product;
+
+        /// <summary>Последний товар этой секции — выкладчик пополняет пустую секцию тем же товаром.</summary>
+        public ProductData LastProduct { get; private set; }
         public int Count => items.Count;
         public int Capacity => slots.Count;
         public bool IsEmpty => items.Count == 0;
@@ -123,6 +126,7 @@ namespace NaSvyazi.Store
                 product = item;
                 BuildSlots(item);
             }
+            LastProduct = item;
 
             GameObject visual = item.CreateVisual(transform);
             visual.transform.localPosition = slots[items.Count];

@@ -24,7 +24,7 @@ namespace NaSvyazi.Progression
     /// высокая репутация и запас денег. Проверяется в конце каждого дня.
     ///
     /// Поражение:
-    /// • банкротство — баланс в минусе к концу дня <see cref="maxDebtDays"/> дня подряд;
+    /// • банкротство — баланс в минусе к концу дня несколько дней подряд (по сложности: 5 / 3 / 2);
     /// • закрытие — репутация к концу дня упала до нуля.
     /// После победы можно продолжить игру без цели (свободный режим).
     /// </summary>
@@ -39,9 +39,6 @@ namespace NaSvyazi.Progression
         [SerializeField] private int targetReputation = 80;
         [SerializeField] private int targetBalance = 100000;
 
-        [Header("Поражение")]
-        [Tooltip("Сколько дней подряд баланс может быть отрицательным к концу дня")]
-        [SerializeField] private int maxDebtDays = 3;
 
         /// <summary>Сколько дней подряд день закончился с отрицательным балансом.</summary>
         public int DebtDays { get; private set; }
@@ -49,7 +46,8 @@ namespace NaSvyazi.Progression
         /// <summary>Цель уже достигнута (дальше — свободный режим).</summary>
         public bool GoalReached { get; private set; }
 
-        public int MaxDebtDays => maxDebtDays;
+        /// <summary>Дней в минусе до банкротства — зависит от сложности (лёгкая 5, обычная 3, сложная 2).</summary>
+        public int MaxDebtDays => Core.GameDifficulty.DebtDays;
 
         private GameEndUI endUI;
 
@@ -85,7 +83,7 @@ namespace NaSvyazi.Progression
             DebtDays = balance < 0 ? DebtDays + 1 : 0;
 
             if (reputation <= 0) return DayOutcome.Closed;
-            if (DebtDays >= maxDebtDays) return DayOutcome.Bankrupt;
+            if (DebtDays >= MaxDebtDays) return DayOutcome.Bankrupt;
 
             if (!GoalReached && IsGoalComplete())
             {
@@ -118,7 +116,7 @@ namespace NaSvyazi.Progression
             int balance = EconomyManager.Instance != null ? EconomyManager.Instance.Balance : 0;
             if (balance < 0 || DebtDays > 0)
             {
-                int left = Mathf.Max(0, maxDebtDays - DebtDays);
+                int left = Mathf.Max(0, MaxDebtDays - DebtDays);
                 sb.AppendLine($"<color=#F25959><b>Долг! Выйдите в плюс к концу дня.</b>  " +
                               $"До банкротства: {left} {DaysWord(left)}</color>");
             }

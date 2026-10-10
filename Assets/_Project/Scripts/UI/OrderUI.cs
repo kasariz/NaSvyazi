@@ -59,7 +59,7 @@ namespace NaSvyazi.UI
         private readonly Dictionary<FurnitureData, ActionItem> furnitureCards = new Dictionary<FurnitureData, ActionItem>();
         private readonly List<KeyValuePair<LayoutZone, int>> stageKeys = new List<KeyValuePair<LayoutZone, int>>();
         private readonly List<ActionItem> stageRows = new List<ActionItem>();
-        private ActionItem cashierRow;
+        private readonly Dictionary<StaffRole, ActionItem> staffRows = new Dictionary<StaffRole, ActionItem>();
         private ActionItem shelvesRow;
         private ActionItem cartRow;
 
@@ -209,12 +209,12 @@ namespace NaSvyazi.UI
             Refresh();
         }
 
-        private void ToggleCashier()
+        private void ToggleStaff(StaffRole role)
         {
             StaffManager staff = StaffManager.Instance;
             if (staff == null) return;
-            if (staff.CashierHired) staff.FireCashier();
-            else staff.TryHireCashier();
+            if (staff.IsHired(role)) staff.Fire(role);
+            else staff.TryHire(role);
             Refresh();
         }
 
@@ -329,8 +329,8 @@ namespace NaSvyazi.UI
                 }
                 else
                 {
-                    bool afford = balanceOk(stage.price);
-                    SetStageState(item, $"{EconomyManager.Format(stage.price)}  ·  аренда +{EconomyManager.Format(stage.extraRent)}/день",
+                    bool afford = balanceOk(stage.Price);
+                    SetStageState(item, $"{EconomyManager.Format(stage.Price)}  ·  аренда +{EconomyManager.Format(stage.extraRent)}/день",
                         afford ? UIFactory.AccentColor : UIFactory.NegativeColor, afford, "Купить");
                 }
             }
@@ -338,17 +338,21 @@ namespace NaSvyazi.UI
             RefreshEquipment(level);
 
             StaffManager staff = StaffManager.Instance;
-            if (cashierRow != null && staff != null)
+            if (staff != null)
             {
-                if (staff.CashierHired)
-                    SetStageState(cashierRow, $"Работает · {EconomyManager.Format(staff.CashierWage)} в день",
-                        UIFactory.PositiveColor, true, "Уволить");
-                else if (level < staff.CashierMinLevel)
-                    SetStageState(cashierRow, $"Нужен уровень салона {staff.CashierMinLevel}", UIFactory.MutedTextColor,
-                        false, "Закрыто");
-                else
-                    SetStageState(cashierRow, $"Зарплата {EconomyManager.Format(staff.CashierWage)} в день",
-                        UIFactory.AccentColor, true, "Нанять");
+                foreach (KeyValuePair<StaffRole, ActionItem> pair in staffRows)
+                {
+                    StaffRole role = pair.Key;
+                    ActionItem row = pair.Value;
+                    int wage = staff.WageOf(role);
+                    int minLevel = StaffManager.Info(role).minLevel;
+                    if (staff.IsHired(role))
+                        SetStageState(row, $"Работает · {EconomyManager.Format(wage)} в день", UIFactory.PositiveColor, true, "Уволить");
+                    else if (level < minLevel)
+                        SetStageState(row, $"Нужен уровень салона {minLevel}", UIFactory.MutedTextColor, false, "Закрыто");
+                    else
+                        SetStageState(row, $"Зарплата {EconomyManager.Format(wage)} в день", UIFactory.AccentColor, true, "Нанять");
+                }
             }
         }
 
@@ -367,8 +371,8 @@ namespace NaSvyazi.UI
                 if (level < u.minLevel)
                     SetStageState(shelvesRow, $"Нужен уровень салона {u.minLevel}", UIFactory.MutedTextColor, false, "Закрыто");
                 else
-                    SetStageState(shelvesRow, EconomyManager.Format(u.price),
-                        balanceOk(u.price) ? UIFactory.AccentColor : UIFactory.NegativeColor, balanceOk(u.price), "Купить");
+                    SetStageState(shelvesRow, EconomyManager.Format(Core.GameDifficulty.ScalePrice(u.price)),
+                        balanceOk(Core.GameDifficulty.ScalePrice(u.price)) ? UIFactory.AccentColor : UIFactory.NegativeColor, balanceOk(Core.GameDifficulty.ScalePrice(u.price)), "Купить");
             }
 
             if (upgrades.HasCart)
@@ -670,9 +674,12 @@ namespace NaSvyazi.UI
             cartRow = CreateDevRow(list, "Тележка для коробок",
                 "До 8 коробок за раз: E — катить, ЛКМ с коробкой — поставить на тележку.", BuyCart);
 
-            AddSection(list, "ПЕРСОНАЛ", "");
-            cashierRow = CreateDevRow(list, "Кассир",
-                "Сам сканирует товар, принимает оплату и консультирует по тарифам (не всегда идеально).", ToggleCashier);
+            AddSection(list, "ПЕРСОНАЛ", "Сотрудники работают сами; навыки ветки «Персонал» (K) их улучшают.");
+            foreach (StaffManager.RoleInfo info in StaffManager.Roles)
+            {
+                StaffRole role = info.role;
+                staffRows[role] = CreateDevRow(list, info.name, info.description, () => ToggleStaff(role));
+            }
         }
 
         private static void AddSection(Transform parent, string title, string subtitle)

@@ -54,6 +54,7 @@ namespace NaSvyazi.Save
         {
             SaveData data = new SaveData();
 
+            data.difficulty = (int)GameDifficulty.Current;
             if (DayManager.Instance != null) data.day = DayManager.Instance.Day;
             if (EconomyManager.Instance != null) data.balance = EconomyManager.Instance.Balance;
             if (ReputationManager.Instance != null) data.reputation = ReputationManager.Instance.Value;
@@ -68,7 +69,13 @@ namespace NaSvyazi.Save
                 data.salonStage = ExpansionManager.Instance.SalonStage;
                 data.storageStage = ExpansionManager.Instance.StorageStage;
             }
-            if (StaffManager.Instance != null) data.cashierHired = StaffManager.Instance.CashierHired;
+            if (StaffManager.Instance != null)
+            {
+                data.cashierHired = StaffManager.Instance.CashierHired;
+                data.merchandiserHired = StaffManager.Instance.IsHired(StaffRole.Merchandiser);
+                data.cleanerHired = StaffManager.Instance.IsHired(StaffRole.Cleaner);
+                data.guardHired = StaffManager.Instance.IsHired(StaffRole.Guard);
+            }
 
             if (SkillManager.Instance != null)
                 foreach (KeyValuePair<string, int> pair in SkillManager.Instance.GetRanks())
@@ -171,12 +178,20 @@ namespace NaSvyazi.Save
                 return;
             }
 
+            // Сохранения до версии 0.3 — без сложности: экономика в них была как на «Лёгкой».
+            GameDifficulty.Set(data.difficulty >= 0 ? (Difficulty)data.difficulty : Difficulty.Easy);
             if (EconomyManager.Instance != null) EconomyManager.Instance.SetBalance(data.balance);
             if (ReputationManager.Instance != null) ReputationManager.Instance.SetValue(data.reputation);
             if (LevelManager.Instance != null) LevelManager.Instance.SetState(data.level, data.xp);
             if (TutorialManager.Instance != null) TutorialManager.Instance.SetCompleted(data.tutorialDone || data.day > 1);
             if (ExpansionManager.Instance != null) ExpansionManager.Instance.SetStages(data.salonStage, data.storageStage);
-            if (StaffManager.Instance != null) StaffManager.Instance.SetCashierHired(data.cashierHired);
+            if (StaffManager.Instance != null)
+            {
+                StaffManager.Instance.SetCashierHired(data.cashierHired);
+                StaffManager.Instance.SetHired(StaffRole.Merchandiser, data.merchandiserHired);
+                StaffManager.Instance.SetHired(StaffRole.Cleaner, data.cleanerHired);
+                StaffManager.Instance.SetHired(StaffRole.Guard, data.guardHired);
+            }
 
             if (SkillManager.Instance != null && data.skills != null)
             {
@@ -358,6 +373,9 @@ namespace NaSvyazi.Save
         public int salonStage;
         public int storageStage;
         public bool cashierHired;
+        public bool merchandiserHired;
+        public bool cleanerHired;
+        public bool guardHired;
         public List<FurnitureEntry> furniture = new List<FurnitureEntry>();
         public List<PriceEntry> prices = new List<PriceEntry>();
         public List<string> unlocked = new List<string>();
@@ -371,6 +389,7 @@ namespace NaSvyazi.Save
         public Quaternion cartRotation = Quaternion.identity;
         public List<string> letters = new List<string>();
         public bool goalReached;
+        public int difficulty = -1;
         public int debtDays;
     }
 

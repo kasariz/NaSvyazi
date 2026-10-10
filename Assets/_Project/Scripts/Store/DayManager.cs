@@ -52,7 +52,7 @@ namespace NaSvyazi.Store
             {
                 int level = Economy.LevelManager.Instance != null ? Economy.LevelManager.Instance.Level : 1;
                 int expansion = Building.ExpansionManager.Instance != null ? Building.ExpansionManager.Instance.ExtraRent : 0;
-                int rent = dailyRent + rentPerLevel * (level - 1) + expansion;
+                int rent = Mathf.RoundToInt((dailyRent + rentPerLevel * (level - 1) + expansion) * GameDifficulty.RentMultiplier);
                 // Навык «Переговоры с арендодателем» снижает аренду.
                 return Mathf.RoundToInt(rent * SkillManager.RentMultiplier);
             }
@@ -148,10 +148,15 @@ namespace NaSvyazi.Store
                 if (wages > 0) economy.Charge(wages, "Зарплата персонала");
             }
 
+            // Налог с выручки (на обычной и сложной сложности), как УСН «доходы».
+            int tax = economy != null ? Mathf.RoundToInt(economy.DayIncome * GameDifficulty.TaxRate) : 0;
+            if (tax > 0) economy.Charge(tax, "Налог с выручки");
+
             int dirtPenalty = CleaningManager.Instance != null ? CleaningManager.Instance.ApplyEndOfDayPenalty() : 0;
 
             DayReport report = DayReport.Collect(Day, rent, wages);
             report.dirtPenalty = dirtPenalty;
+            report.tax = tax;
 
             // Итог дня для цели игры: долг, банкротство, закрытие или победа.
             DayOutcome outcome = GoalManager.Instance != null ? GoalManager.Instance.EvaluateDay() : DayOutcome.Continue;
@@ -261,6 +266,7 @@ namespace NaSvyazi.Store
         public int thievesCaught;
         public string eventName;
         public int dirtPenalty;
+        public int tax;
         public int debtDays;
         public int maxDebtDays;
 

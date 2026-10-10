@@ -1749,8 +1749,11 @@ namespace NaSvyazi.EditorTools
 
         private static void SetReference(Object target, string field, Object value)
         {
+            if (target == null) return;
             SerializedObject so = new SerializedObject(target);
-            so.FindProperty(field).objectReferenceValue = value;
+            SerializedProperty property = so.FindProperty(field);
+            if (property == null) return; // поле убрано в новой версии (например, tariffCatalog)
+            property.objectReferenceValue = value;
             so.ApplyModifiedPropertiesWithoutUndo();
         }
 

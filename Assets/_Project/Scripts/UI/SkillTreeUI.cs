@@ -97,7 +97,7 @@ namespace NaSvyazi.UI
 
             Image window = UIFactory.CreatePanel("Window", canvas.transform, UIFactory.PanelColor);
             UIFactory.Place(window.rectTransform, new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f),
-                Vector2.zero, new Vector2(1500f, 860f));
+                Vector2.zero, new Vector2(1820f, 900f));
             UIFactory.AddVerticalLayout(window.gameObject, 12f, 32);
 
             TextMeshProUGUI title = UIFactory.CreateText("Title", window.transform, "Навыки салона", 36f, UIFactory.TextColor);
@@ -115,6 +115,7 @@ namespace NaSvyazi.UI
             BuildBranch(columns, SkillBranch.Service, "Сервис", "лояльность и терпение покупателей");
             BuildBranch(columns, SkillBranch.Marketing, "Маркетинг", "сколько покупателей и что они берут");
             BuildBranch(columns, SkillBranch.Logistics, "Логистика", "закупка, доставка и расходы");
+            BuildBranch(columns, SkillBranch.Staff, "Персонал", "выкладчик, уборщица, охранник");
 
             RectTransform footer = UIFactory.CreateRect("Footer", window.transform);
             UIFactory.AddHorizontalLayout(footer.gameObject, 12f, 0);
@@ -154,6 +155,9 @@ namespace NaSvyazi.UI
             TextMeshProUGUI name = UIFactory.CreateText("Name", bg.transform, $"{skill.tier}. {skill.name}", 24f,
                 UIFactory.TextColor);
             name.fontStyle = FontStyles.Bold;
+            name.enableAutoSizing = true;
+            name.fontSizeMin = 16f;
+            name.fontSizeMax = 24f;
             UIFactory.SetSize(name, height: 32f);
 
             TextMeshProUGUI rank = UIFactory.CreateText("Rank", bg.transform, "", 18f, UIFactory.AccentColor);

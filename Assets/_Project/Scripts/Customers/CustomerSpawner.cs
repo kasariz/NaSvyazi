@@ -24,7 +24,6 @@ namespace NaSvyazi.Customers
         [SerializeField] private Transform spawnPoint;
         [SerializeField] private CheckoutQueue queue;
         [SerializeField] private ProductCatalog catalog;
-        [SerializeField] private TariffCatalog tariffCatalog;
 
         [Header("Поток покупателей")]
         [Tooltip("Интервал между покупателями, сек (мин, макс) — подобран под день ≈ 5 минут")]
@@ -45,6 +44,10 @@ namespace NaSvyazi.Customers
         private float timer;
 
         public int ActiveCount => active.Count;
+
+        /// <summary>Случайная модель покупателя (её внешность используют и сотрудники).</summary>
+        public Customer RandomPrefab() =>
+            customerPrefabs.Count > 0 ? customerPrefabs[Random.Range(0, customerPrefabs.Count)] : customerPrefab;
 
         private void OnEnable() => GameEvents.StoreOpenChanged += OnStoreOpenChanged;
         private void OnDisable() => GameEvents.StoreOpenChanged -= OnStoreOpenChanged;
@@ -68,14 +71,14 @@ namespace NaSvyazi.Customers
             timer = Random.Range(customerInterval.x, customerInterval.y) * ReputationManager.SpawnIntervalMultiplier
                     * Building.FurnitureEffect.SpawnIntervalMultiplier
                     * SkillManager.SpawnIntervalMultiplier      // навык «Сарафанное радио»
-                    * StoreEventManager.SpawnMultiplier;        // событие дня (например, «Чёрная пятница»)
+                    * StoreEventManager.SpawnMultiplier         // событие дня (например, «Чёрная пятница»)
+                    * GameDifficulty.CustomerIntervalMultiplier;
             if (active.Count < maxCustomers) Spawn();
         }
 
         private void Spawn()
         {
-            bool wantsConsultation = tariffCatalog != null && tariffCatalog.needs.Count > 0
-                                     && Random.value < consultationChance * StoreEventManager.ConsultationMultiplier;
+            bool wantsConsultation = Random.value < consultationChance * StoreEventManager.ConsultationMultiplier;
 
             List<ProductData> wants = wantsConsultation ? null : PickShoppingList();
             if (!wantsConsultation && wants.Count == 0) return;
@@ -89,7 +92,7 @@ namespace NaSvyazi.Customers
             c.name = $"Customer_{active.Count + 1}";
 
             if (wantsConsultation)
-                c.InitConsultation(tariffCatalog.RandomNeed(), queue, spawnPoint.position);
+                c.InitConsultation(TariffBuilder.RandomNeed(), queue, spawnPoint.position);
             else
             {
                 c.Init(wants, DemandModel.RandomTolerance(), queue, spawnPoint.position);

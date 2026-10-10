@@ -42,6 +42,8 @@ namespace NaSvyazi.Economy
         public void Change(int delta, string reason)
         {
             int old = Value;
+            // На сложных уровнях потери репутации ощутимее.
+            if (delta < 0) delta = Mathf.Min(-1, Mathf.RoundToInt(delta * GameDifficulty.ReputationLossMultiplier));
             Value = Mathf.Clamp(Value + delta, 0, 100);
             if (Value == old) return;
 

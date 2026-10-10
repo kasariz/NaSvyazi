@@ -11,8 +11,6 @@ namespace NaSvyazi.Economy
     {
         public static EconomyManager Instance { get; private set; }
 
-        [SerializeField] private int startMoney = 5000;
-
         public int Balance { get; private set; }
         public int DayIncome { get; private set; }
         public int DayExpenses { get; private set; }
@@ -27,7 +25,8 @@ namespace NaSvyazi.Economy
             }
 
             Instance = this;
-            Balance = startMoney;
+            // Стартовый капитал зависит от сложности (при загрузке сохранения баланс перезапишется).
+            Balance = GameDifficulty.StartMoney;
         }
 
         private void Start() => GameEvents.RaiseMoneyChanged(Balance, 0);

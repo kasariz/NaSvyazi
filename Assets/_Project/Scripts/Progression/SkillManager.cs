@@ -12,7 +12,8 @@ namespace NaSvyazi.Progression
     {
         Service,   // Сервис: терпение покупателей, кассир, консультации
         Marketing, // Маркетинг: поток покупателей, объём покупок, готовность платить
-        Logistics  // Логистика: доставка, закупочные цены, аренда
+        Logistics, // Логистика: доставка, закупочные цены, аренда
+        Staff      // Персонал: выкладчик, уборщица, охранник, зарплаты
     }
 
     /// <summary>Описание навыка: ветка, ступень, максимальный ранг, требование.</summary>
@@ -62,6 +63,14 @@ namespace NaSvyazi.Progression
                 requires = "fast_delivery", description = "Закупка у поставщика дешевле: −5 % за ранг." },
             new SkillDefinition { id = "lean_rent", name = "Переговоры с арендодателем", branch = SkillBranch.Logistics, tier = 3, maxRank = 2,
                 requires = "wholesale", description = "Аренда дешевле: −10 % за ранг." },
+
+            // --- Персонал ---
+            new SkillDefinition { id = "merch_speed", name = "Расторопный выкладчик", branch = SkillBranch.Staff, tier = 1, maxRank = 2,
+                description = "Выкладчик работает на 35 % быстрее и уносит на 3 шт. больше за ранг." },
+            new SkillDefinition { id = "cleaner_speed", name = "Чистота — залог успеха", branch = SkillBranch.Staff, tier = 2, maxRank = 2,
+                requires = "merch_speed", description = "Уборщица моет пол на 40 % быстрее за ранг." },
+            new SkillDefinition { id = "staff_motivation", name = "Мотивация персонала", branch = SkillBranch.Staff, tier = 3, maxRank = 2,
+                requires = "cleaner_speed", description = "Зарплаты всех сотрудников −10 %, охранник ловит воров на 15 % чаще за ранг." },
         };
 
         private readonly Dictionary<string, int> ranks = new Dictionary<string, int>();
@@ -182,6 +191,18 @@ namespace NaSvyazi.Progression
 
         /// <summary>Множитель закупочной цены.</summary>
         public static float PurchasePriceMultiplier => 1f - 0.05f * Rank("wholesale");
+
+        /// <summary>Скорость выкладчика.</summary>
+        public static float MerchandiserSpeedMultiplier => 1f + 0.35f * Rank("merch_speed");
+
+        /// <summary>Скорость уборщицы.</summary>
+        public static float CleanerSpeedMultiplier => 1f + 0.4f * Rank("cleaner_speed");
+
+        /// <summary>Вероятность, что охранник задержит вора.</summary>
+        public static float GuardCatchChance => Mathf.Min(0.95f, 0.6f + 0.15f * Rank("staff_motivation"));
+
+        /// <summary>Множитель зарплат персонала.</summary>
+        public static float StaffWageMultiplier => 1f - 0.1f * Rank("staff_motivation");
 
         /// <summary>Множитель аренды.</summary>
         public static float RentMultiplier => 1f - 0.1f * Rank("lean_rent");

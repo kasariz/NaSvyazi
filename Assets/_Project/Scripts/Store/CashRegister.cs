@@ -32,7 +32,6 @@ namespace NaSvyazi.Store
         [SerializeField] private CheckoutQueue queue;
         [SerializeField] private ChangeUI changeUI;
         [SerializeField] private ConsultationUI consultationUI;
-        [SerializeField] private TariffCatalog tariffCatalog;
 
         [Header("Раскладка товаров на прилавке (относительно кассы)")]
         // Касса повёрнута к кассиру (на 180°), поэтому «вправо от кассы» в мире — это −X в её осях.
@@ -147,19 +146,11 @@ namespace NaSvyazi.Store
             FinishSale(scannedTotal, "Спасибо!");
         }
 
-        /// <summary>Подобрать тариф: с вероятностью accuracy — лучший, иначе случайный.</summary>
+        /// <summary>Собрать тариф: с вероятностью accuracy — идеальный, иначе с ошибкой (см. TariffBuilder.AutoBuild).</summary>
         public void AutoConsult(float accuracy)
         {
-            if (State != RegisterState.Consulting || current == null || tariffCatalog == null) return;
-
-            TariffData best = tariffCatalog.BestFor(current.Need);
-            TariffData chosen = best;
-            if (best == null || Random.value > accuracy)
-            {
-                List<TariffData> all = tariffCatalog.tariffs.FindAll(t => t != null);
-                if (all.Count > 0) chosen = all[Random.Range(0, all.Count)];
-            }
-            OnTariffChosen(chosen);
+            if (State != RegisterState.Consulting || current == null) return;
+            OnPlanChosen(TariffBuilder.AutoBuild(current.Need, accuracy));
         }
 
         // --- IInteractable (E): приём оплаты или консультация ---
@@ -197,9 +188,9 @@ namespace NaSvyazi.Store
                     changeUI.OpenFor(scannedTotal, current.CashGiven, OnChangeGiven, interactor.Controller);
                 }
             }
-            else if (State == RegisterState.Consulting && consultationUI != null && tariffCatalog != null)
+            else if (State == RegisterState.Consulting && consultationUI != null)
             {
-                consultationUI.OpenFor(current.Need, tariffCatalog, OnTariffChosen, interactor.Controller);
+                consultationUI.OpenFor(current.Need, OnPlanChosen, interactor.Controller);
             }
         }
 
@@ -258,15 +249,17 @@ namespace NaSvyazi.Store
         /// <summary>
         /// Итог консультации. Для подключения нужен стартовый пакет SIM с полки:
         /// доход — абонентская плата за первый месяц плюс цена SIM.
+        /// Довольство клиента (0–100 %) решает, подключится ли он и как изменится репутация.
         /// </summary>
-        private void OnTariffChosen(TariffData chosen)
+        private void OnPlanChosen(TariffPlan plan)
         {
             if (current == null) return;
 
-            ConsultationResult result = tariffCatalog.Evaluate(current.Need, chosen);
+            TariffEvaluation e = TariffBuilder.Evaluate(current.Need, plan);
+            int fee = plan.MonthlyFee;
 
             int simPrice = 0;
-            if (result != ConsultationResult.Unsuitable && !TakeSimFromShelf(out simPrice))
+            if (e.result != ConsultationResult.Unsuitable && !TakeSimFromShelf(out simPrice))
             {
                 StoreStats.OutOfStockMisses++;
                 ReputationManager.Add(-2, "нет SIM-карт для подключения");
@@ -277,37 +270,35 @@ namespace NaSvyazi.Store
                 return;
             }
             if (simPrice > 0) StoreStats.ItemsSold++;
-            switch (result)
+
+            switch (e.result)
             {
                 case ConsultationResult.Best:
                     StoreStats.ConsultationsBest++;
-                    ReputationManager.Add(3, "точно подобран тариф");
+                    ReputationManager.Add(e.satisfaction >= 98 ? 3 : 2, "точно подобран тариф");
                     LevelManager.AddXp(6, "точная консультация");
                     GameEvents.RaiseSaleCompleted();
-                    Earn(chosen.monthlyFee + simPrice, "Подключение тарифа");
+                    Earn(fee + simPrice, "Подключение тарифа");
                     SoundManager.Play(Sfx.Purchase);
-                    GameEvents.Notify($"Отличный выбор! Клиент подключил «{chosen.displayName}»");
+                    GameEvents.Notify($"Клиент доволен на {e.satisfaction}% и подключил тариф за {EconomyManager.Format(fee)}/мес");
                     current.CompletePurchase("То, что нужно, спасибо!");
                     break;
 
                 case ConsultationResult.Acceptable:
                     StoreStats.ConsultationsAcceptable++;
-                    ReputationManager.Add(-1, "клиенту подобран тариф дороже нужного");
+                    ReputationManager.Add(-1, "тариф подобран неточно");
                     LevelManager.AddXp(2, "консультация");
                     GameEvents.RaiseSaleCompleted();
-                    Earn(chosen.monthlyFee + simPrice, "Подключение тарифа");
-                    TariffData best = tariffCatalog.BestFor(current.Need);
-                    GameEvents.Notify(best != null
-                        ? $"Подходит, но выгоднее был бы «{best.displayName}»"
-                        : "Тариф подходит");
-                    current.CompletePurchase("Дороговато, но ладно");
+                    Earn(fee + simPrice, "Подключение тарифа");
+                    GameEvents.Notify($"Довольство {e.satisfaction}%: {e.remarks[0].ToLowerInvariant()}");
+                    current.CompletePurchase("Ну... ладно, подключайте");
                     break;
 
                 default:
                     StoreStats.ConsultationsFailed++;
                     ReputationManager.Add(-4, "неподходящий тариф");
                     SoundManager.Play(Sfx.Error);
-                    GameEvents.Notify("Тариф не подходит клиенту — он ушёл без подключения");
+                    GameEvents.Notify($"Довольство {e.satisfaction}% — клиент ушёл. {e.remarks[0]}");
                     current.CompletePurchase("Это мне не подходит...");
                     break;
             }

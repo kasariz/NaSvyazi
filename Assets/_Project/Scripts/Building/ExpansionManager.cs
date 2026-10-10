@@ -69,7 +69,7 @@ namespace NaSvyazi.Building
             }
 
             EconomyManager economy = EconomyManager.Instance;
-            if (economy == null || !economy.TrySpend(next.price, next.name))
+            if (economy == null || !economy.TrySpend(next.Price, next.name))
             {
                 GameEvents.Notify("Недостаточно денег");
                 SoundManager.Play(Sfx.Error);

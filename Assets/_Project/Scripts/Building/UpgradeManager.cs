@@ -48,7 +48,7 @@ namespace NaSvyazi.Building
 
         public int ShelfTier { get; private set; }
         public bool HasCart { get; private set; }
-        public int CartPrice => cartPrice;
+        public int CartPrice => Core.GameDifficulty.ScalePrice(cartPrice);
         public int CartMinLevel => cartMinLevel;
         public HandCart Cart => cart;
 
@@ -92,6 +92,7 @@ namespace NaSvyazi.Building
 
         private static bool Pay(int price, int minLevel, string what)
         {
+            price = Core.GameDifficulty.ScalePrice(price);
             if (LevelManager.CurrentLevel < minLevel)
             {
                 GameEvents.Notify($"Нужен уровень салона {minLevel}");

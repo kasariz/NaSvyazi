@@ -16,6 +16,7 @@ namespace NaSvyazi.UI
 
         private GameObject buttonsPanel;
         private GameObject settingsPanel;
+        private GameObject difficultyPanel;
 
         private void Start()
         {
@@ -42,10 +43,67 @@ namespace NaSvyazi.UI
 
         private void ContinueGame() => SceneManager.LoadScene(GameScene);
 
+        /// <summary>«Новая игра» — сначала выбор сложности.</summary>
         private void NewGame()
         {
+            buttonsPanel.SetActive(false);
+            difficultyPanel.SetActive(true);
+        }
+
+        private void StartNewGame(Core.Difficulty difficulty)
+        {
+            Core.GameDifficulty.Set(difficulty);
             SaveSystem.DeleteSave();
             SceneManager.LoadScene(GameScene);
+        }
+
+        private void BackToMenu()
+        {
+            difficultyPanel.SetActive(false);
+            buttonsPanel.SetActive(true);
+        }
+
+        /// <summary>Панель выбора сложности: три карточки с описанием и кнопка «Назад».</summary>
+        private GameObject BuildDifficultyPanel(Transform parent)
+        {
+            RectTransform panel = UIFactory.CreateRect("Difficulty", parent);
+            UIFactory.Stretch(panel);
+            UIFactory.AddVerticalLayout(panel.gameObject, 14f, 0);
+
+            TextMeshProUGUI header = UIFactory.CreateText("Header", panel, "Выберите сложность", 34f, UIFactory.TextColor);
+            header.fontStyle = FontStyles.Bold;
+            UIFactory.SetSize(header, height: 50f);
+
+            foreach (Core.Difficulty d in new[] { Core.Difficulty.Easy, Core.Difficulty.Normal, Core.Difficulty.Hard })
+            {
+                Core.Difficulty chosen = d;
+                Image card = UIFactory.CreatePanel($"Card_{d}", panel, UIFactory.RowColor);
+                HorizontalLayoutGroup row = UIFactory.AddHorizontalLayout(card.gameObject, 18f, 14);
+                row.childAlignment = TextAnchor.MiddleLeft;
+                UIFactory.SetSize(card, height: 120f);
+
+                RectTransform texts = UIFactory.CreateRect("Texts", card.transform);
+                UIFactory.AddVerticalLayout(texts.gameObject, 4f, 0).childAlignment = TextAnchor.MiddleLeft;
+                UIFactory.SetSize(texts, flexibleWidth: 1f);
+                TextMeshProUGUI name = UIFactory.CreateText("Name", texts, Core.GameDifficulty.Name(d), 28f,
+                    d == Core.Difficulty.Normal ? UIFactory.AccentColor : UIFactory.TextColor);
+                name.fontStyle = FontStyles.Bold;
+                UIFactory.SetSize(name, height: 36f);
+                TextMeshProUGUI desc = UIFactory.CreateText("Desc", texts, Core.GameDifficulty.Description(d), 18f,
+                    UIFactory.MutedTextColor, TextAlignmentOptions.TopLeft);
+                desc.enableAutoSizing = true;
+                desc.fontSizeMin = 13f;
+                desc.fontSizeMax = 18f;
+                UIFactory.SetSize(desc, height: 52f);
+
+                Button play = UIFactory.CreateButton("Play", card.transform, "Начать", () => StartNewGame(chosen),
+                    d == Core.Difficulty.Normal ? UIFactory.AccentColor : UIFactory.ButtonColor, 24f);
+                UIFactory.SetSize(play, width: 150f, height: 60f);
+            }
+
+            Button back = UIFactory.CreateButton("Back", panel, "Назад", BackToMenu, UIFactory.ButtonColor, 24f);
+            UIFactory.SetSize(back, height: 56f);
+            return panel.gameObject;
         }
 
         private void Quit()
@@ -110,6 +168,9 @@ namespace NaSvyazi.UI
 
             settingsPanel = SettingsPanel.Build(area, () => ShowSettings(false));
             settingsPanel.SetActive(false);
+
+            difficultyPanel = BuildDifficultyPanel(area);
+            difficultyPanel.SetActive(false);
 
             TextMeshProUGUI footer = UIFactory.CreateText("Footer", canvas.transform,
                 $"Версия {Application.version}", 20f, UIFactory.MutedTextColor,

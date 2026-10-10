@@ -14,8 +14,11 @@ namespace NaSvyazi.Tariffs
         [Tooltip("Сколько ГБ нужно как минимум. −1 — нужен только безлимит")]
         public int minGigabytes;
 
-        [Tooltip("Сколько минут нужно как минимум")]
+        [Tooltip("Сколько минут нужно как минимум. −1 — нужен безлимит")]
         public int minMinutes;
+
+        [Tooltip("Нужные клиенту опции (конструктор тарифов)")]
+        public TariffAddon addons;
     }
 
     /// <summary>Оценка выбора игрока.</summary>

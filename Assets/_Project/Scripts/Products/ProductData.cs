@@ -25,7 +25,8 @@ namespace NaSvyazi.Products
 
         /// <summary>Фактическая цена закупки с учётом навыка «Оптовые скидки».</summary>
         public int EffectivePurchasePrice =>
-            Mathf.Max(1, Mathf.RoundToInt(purchasePrice * Progression.SkillManager.PurchasePriceMultiplier));
+            Mathf.Max(1, Mathf.RoundToInt(Core.GameDifficulty.PurchasePrice(purchasePrice, marketPrice)
+                                               * Progression.SkillManager.PurchasePriceMultiplier));
 
         /// <summary>Стоимость одной коробки у поставщика.</summary>
         public int BoxCost => EffectivePurchasePrice * unitsPerBox;

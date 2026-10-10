@@ -39,6 +39,20 @@ namespace NaSvyazi.Store
             }
         }
 
+        /// <summary>Ближайшее неотмытое пятно (для уборщика) или null.</summary>
+        public DirtSpot Nearest(Vector3 from)
+        {
+            DirtSpot best = null;
+            float bestD = float.MaxValue;
+            foreach (DirtSpot s in spots)
+            {
+                if (s == null || s.IsCleaned) continue;
+                float d = (s.transform.position - from).sqrMagnitude;
+                if (d < bestD) { bestD = d; best = s; }
+            }
+            return best;
+        }
+
         private void Awake() => Instance = this;
 
         private void OnDestroy()

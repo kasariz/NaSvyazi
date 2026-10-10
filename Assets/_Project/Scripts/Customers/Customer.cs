@@ -307,7 +307,8 @@ namespace NaSvyazi.Customers
             float tolerance = priceTolerance;
             if (wanted.category.RequiresShowcase()) tolerance += FurnitureEffect.PremiumToleranceBonus;
             // Навык «Яркие ценники» и событие дня тоже меняют готовность платить.
-            tolerance += SkillManager.ToleranceBonus + StoreEventManager.ToleranceBonus(wanted.category);
+            tolerance += SkillManager.ToleranceBonus + StoreEventManager.ToleranceBonus(wanted.category)
+                         + Core.GameDifficulty.ToleranceShift;
 
             float chance = DemandModel.BuyProbability(price, wanted.marketPrice, tolerance);
 
@@ -432,7 +433,8 @@ namespace NaSvyazi.Customers
             ProductData product = section.Product;
             int price = PriceManager.PriceOf(product);
             float impulseTolerance = priceTolerance + SkillManager.ToleranceBonus
-                                     + StoreEventManager.ToleranceBonus(product.category);
+                                     + StoreEventManager.ToleranceBonus(product.category)
+                                     + Core.GameDifficulty.ToleranceShift;
             if (Random.value > DemandModel.BuyProbability(price, product.marketPrice, impulseTolerance)) return;
 
             if (section.TryTakeOne(out ProductData taken))

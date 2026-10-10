@@ -35,16 +35,26 @@ namespace NaSvyazi.Store
         {
             if (!(interactor.Carry.Held is Mop)) return;
 
-            left--;
             ((Mop)interactor.Carry.Held).Scrub(transform.position);
+            Stroke();
+        }
+
+        public bool IsCleaned => left <= 0;
+
+        /// <summary>Один «мазок» шваброй (игрок или уборщик). true — пятно отмыто.</summary>
+        public bool Stroke()
+        {
+            if (left <= 0) return true;
+            left--;
             SoundManager.Play(Sfx.Scrub, 0.35f);
             if (left <= 0)
             {
                 if (CleaningManager.Instance != null) CleaningManager.Instance.OnCleaned(this);
                 Destroy(gameObject);
-                return;
+                return true;
             }
             Apply();
+            return false;
         }
 
         public string GetSecondaryPrompt(PlayerInteractor interactor) => null;
