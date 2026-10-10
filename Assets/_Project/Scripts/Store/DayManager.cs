@@ -219,6 +219,12 @@ namespace NaSvyazi.Store
             if (Save.SaveSystem.Instance != null) Save.SaveSystem.Instance.Save();
         }
 
+        /// <summary>Отладка: перемотать открытый день к самому закрытию.</summary>
+        public void DebugSkipToClose()
+        {
+            if (Phase == DayPhase.Open) Minutes = closeHour * 60 - 1;
+        }
+
         /// <summary>Установить номер дня (при загрузке сохранения). День начинается с подготовки.</summary>
         public void SetDay(int day)
         {

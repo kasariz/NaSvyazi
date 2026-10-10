@@ -99,6 +99,12 @@ namespace NaSvyazi.Store
             }
         }
 
+        /// <summary>Отладка: пятно грязи в точке.</summary>
+        public void DebugSpawn(Vector3 position)
+        {
+            if (dirtMaterial != null) Spawn(new Vector3(position.x, 0.004f, position.z));
+        }
+
         private void Spawn(Vector3 position)
         {
             GameObject go = GameObject.CreatePrimitive(PrimitiveType.Quad);

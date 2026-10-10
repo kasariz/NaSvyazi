@@ -95,6 +95,14 @@ namespace NaSvyazi.Events
             if (Current != null) GameEvents.Notify($"Событие дня: {Current.name}. {Current.announcement}");
         }
 
+        /// <summary>Отладка: следующее событие по кругу.</summary>
+        public void DebugNextEvent()
+        {
+            int i = Current == null ? 0 : (Events.IndexOf(Current) + 1) % (Events.Count + 1);
+            Current = i < Events.Count ? Events[i] : null;
+            GameEvents.Notify(Current != null ? $"Событие дня: {Current.name}. {Current.announcement}" : "Событие дня отменено");
+        }
+
         /// <summary>Восстановить событие (при загрузке).</summary>
         public void SetCurrent(string id) => Current = string.IsNullOrEmpty(id) ? null : Events.Find(e => e.id == id);
 
