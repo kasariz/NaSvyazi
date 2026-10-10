@@ -10,11 +10,13 @@ using UnityEngine;
 namespace NaSvyazi.EditorTools
 {
     /// <summary>
-    /// Подключение анимированных персонажей (например, Quaternius Universal Base Characters
-    /// + Universal Animation Library, лицензия CC0) вместо капсул.
+    /// Подключение анимированных персонажей вместо капсул (например, Quaternius
+    /// Ultimate Animated Character Pack, лицензия CC0).
     ///
     /// Что делает команда:
     /// 1) переводит FBX-модели и анимации в тип Humanoid (общий скелет — анимации подходят ко всем моделям);
+    ///    если скелет модели не распознаётся как человеческий, модель импортируется как Generic
+    ///    и использует собственные анимации из своего FBX (через Animator Override Controller);
     /// 2) находит клипы ожидания (Idle) и ходьбы (Walk), включает им зацикливание;
     /// 3) создаёт Animator Controller с параметром Speed (ожидание ↔ ходьба);
     /// 4) собирает префаб покупателя для каждой модели и передаёт их генератору покупателей.
@@ -25,6 +27,7 @@ namespace NaSvyazi.EditorTools
         private const string AnimationsFolder = "Assets/_Project/Art/Animations";
         private const string ControllerPath = "Assets/_Project/Art/CustomerAnimator.controller";
         private const string VariantsFolder = "Assets/_Project/Prefabs/Customers";
+        private const string OverridesFolder = "Assets/_Project/Art/AnimatorOverrides";
         private const float TargetHeight = 1.72f;
 
         [MenuItem("На связи/Подключить персонажей (Quaternius)", priority = 14)]
@@ -76,17 +79,22 @@ namespace NaSvyazi.EditorTools
                 return;
             }
 
+            // Старые варианты удаляем — список собирается заново по текущим моделям.
             EnsureFolder(VariantsFolder);
+            EnsureFolder(OverridesFolder);
+            foreach (string guid in AssetDatabase.FindAssets("", new[] { VariantsFolder, OverridesFolder }))
+                AssetDatabase.DeleteAsset(AssetDatabase.GUIDToAssetPath(guid));
+
             List<Customer> variants = new List<Customer>();
             foreach (string path in modelPaths)
             {
-                Customer variant = BuildVariant(basePrefab, path, controller);
+                Customer variant = BuildVariant(basePrefab, path, controller, idle, walk);
                 if (variant != null) variants.Add(variant);
             }
 
             if (variants.Count == 0)
             {
-                Debug.LogError("[На связи] Ни одна модель не подошла: нужен скелет, который Unity распознаёт как Humanoid.");
+                Debug.LogError("[На связи] Ни одна модель не подошла: нужен скелет Humanoid или собственные анимации Idle/Walk в FBX.");
                 return;
             }
 
@@ -117,6 +125,16 @@ namespace NaSvyazi.EditorTools
                             || p.EndsWith(".gltf", System.StringComparison.OrdinalIgnoreCase))
                 .Distinct()
                 .ToList();
+        }
+
+        private static void MakeGeneric(string path)
+        {
+            ModelImporter importer = AssetImporter.GetAtPath(path) as ModelImporter;
+            if (importer == null || importer.animationType == ModelImporterAnimationType.Generic) return;
+
+            importer.animationType = ModelImporterAnimationType.Generic;
+            importer.avatarSetup = ModelImporterAvatarSetup.CreateFromThisModel;
+            importer.SaveAndReimport();
         }
 
         private static void MakeHumanoid(string path)
@@ -225,16 +243,43 @@ namespace NaSvyazi.EditorTools
         }
 
         /// <summary>Префаб покупателя: базовый префаб, у которого капсула заменена моделью.</summary>
-        private static Customer BuildVariant(GameObject basePrefab, string modelPath, AnimatorController controller)
+        private static Customer BuildVariant(GameObject basePrefab, string modelPath, AnimatorController controller,
+            AnimationClip baseIdle, AnimationClip baseWalk)
         {
             GameObject model = AssetDatabase.LoadAssetAtPath<GameObject>(modelPath);
+            if (model == null || model.GetComponentInChildren<SkinnedMeshRenderer>() == null) return null;
+
             Avatar avatar = AssetDatabase.LoadAllAssetsAtPath(modelPath).OfType<Avatar>().FirstOrDefault();
-            if (model == null || avatar == null || !avatar.isValid || !avatar.isHuman)
+            RuntimeAnimatorController animatorController = controller;
+
+            if (avatar == null || !avatar.isValid || !avatar.isHuman)
             {
-                Debug.LogWarning($"[На связи] Пропущена модель {Path.GetFileName(modelPath)}: не Humanoid.");
-                return null;
+                // Скелет не человеческий для Unity — берём модель как Generic с её собственными анимациями.
+                MakeGeneric(modelPath);
+                model = AssetDatabase.LoadAssetAtPath<GameObject>(modelPath);
+                avatar = AssetDatabase.LoadAllAssetsAtPath(modelPath).OfType<Avatar>().FirstOrDefault();
+
+                AnimationClip ownIdle = FindClip(new[] { modelPath }, "idle");
+                AnimationClip ownWalk = FindClip(new[] { modelPath }, "walk");
+                if (ownIdle == null || ownWalk == null)
+                {
+                    Debug.LogWarning($"[На связи] Пропущена модель {Path.GetFileName(modelPath)}: " +
+                                     "скелет не Humanoid и в файле нет своих анимаций Idle/Walk.");
+                    return null;
+                }
+
+                SetLooping(ownIdle);
+                SetLooping(ownWalk);
+                ownIdle = ReloadClip(ownIdle);
+                ownWalk = ReloadClip(ownWalk);
+
+                AnimatorOverrideController overrides = new AnimatorOverrideController(controller);
+                overrides[baseIdle] = ownIdle;
+                overrides[baseWalk] = ownWalk;
+                string overridePath = $"{OverridesFolder}/{Path.GetFileNameWithoutExtension(modelPath)}.overrideController";
+                AssetDatabase.CreateAsset(overrides, overridePath);
+                animatorController = overrides;
             }
-            if (model.GetComponentInChildren<SkinnedMeshRenderer>() == null) return null;
 
             GameObject root = (GameObject)PrefabUtility.InstantiatePrefab(basePrefab);
             PrefabUtility.UnpackPrefabInstance(root, PrefabUnpackMode.Completely, InteractionMode.AutomatedAction);
@@ -260,7 +305,7 @@ namespace NaSvyazi.EditorTools
             Animator animator = instance.GetComponent<Animator>();
             if (animator == null) animator = instance.AddComponent<Animator>();
             animator.avatar = avatar;
-            animator.runtimeAnimatorController = controller;
+            animator.runtimeAnimatorController = animatorController;
             animator.applyRootMotion = false;
             animator.cullingMode = AnimatorCullingMode.AlwaysAnimate;
 
