@@ -239,6 +239,12 @@ namespace NaSvyazi.Building
             Debug.Log($"[Мебель] {placed.name} → {placed.transform.position}");
         }
 
+        /// <summary>Отменить расстановку, если она идёт (например, перед отчётом за день).</summary>
+        public void CancelPlacement()
+        {
+            if (ghost != null) Cancel();
+        }
+
         private void Cancel()
         {
             LastCancelFrame = Time.frameCount;

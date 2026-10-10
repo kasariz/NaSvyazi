@@ -24,6 +24,20 @@ namespace NaSvyazi.Store
         /// <summary>Все секции на сцене — понадобится покупателям для поиска товара.</summary>
         public static readonly List<ShelfSection> All = new List<ShelfSection>();
 
+        /// <summary>
+        /// Улучшение стеллажей (0–2): сколько дополнительных ярусов товара можно ставить
+        /// друг на друга, если позволяет высота секции.
+        /// </summary>
+        public static int ExtraTiers { get; private set; }
+
+        /// <summary>Применить улучшение ко всем секциям (товар остаётся на своих местах).</summary>
+        public static void SetExtraTiers(int tiers)
+        {
+            ExtraTiers = Mathf.Clamp(tiers, 0, 2);
+            foreach (ShelfSection s in All)
+                if (s.product != null) s.BuildSlots(s.product);
+        }
+
         [Header("Размер секции (м)")]
         [SerializeField] private float width = 0.85f;
         [SerializeField] private float depth = 0.4f;
@@ -226,14 +240,18 @@ namespace NaSvyazi.Store
             float startX = -columns * cellX * 0.5f + cellX * 0.5f;
             float frontZ = depth * 0.5f - cellZ * 0.5f;
 
-            for (int r = 0; r < rows; r++)
-            {
-                for (int c = 0; c < columns; c++)
-                {
-                    if (slots.Count >= maxItems) return;
-                    slots.Add(new Vector3(startX + c * cellX, 0f, frontZ - r * cellZ));
-                }
-            }
+            // Ярусы: нижний всегда, верхние — после улучшения стеллажей и если хватает высоты.
+            float cellY = item.size.y + 0.005f;
+            int tiers = Mathf.Clamp(1 + ExtraTiers, 1, Mathf.Max(1, Mathf.FloorToInt(height / cellY)));
+            int limit = maxItems * tiers;
+
+            for (int t = 0; t < tiers; t++)
+                for (int r = 0; r < rows; r++)
+                    for (int c = 0; c < columns; c++)
+                    {
+                        if (slots.Count >= limit) return;
+                        slots.Add(new Vector3(startX + c * cellX, t * cellY, frontZ - r * cellZ));
+                    }
         }
 
         private void ConfigureCollider()

@@ -92,7 +92,7 @@ namespace NaSvyazi.Building
         /// <summary>Прибавка к порогу терпимости цены для смартфонов и аудио (до двух демо-столов).</summary>
         public static float PremiumToleranceBonus => 0.08f * Mathf.Min(Count(FurnitureEffectType.DemoTable), 2);
 
-        /// <summary>Ежедневная прибавка к репутации от декора (до трёх предметов).</summary>
-        public static int DailyReputationBonus => Mathf.Min(Count(FurnitureEffectType.Decor), 3);
+        /// <summary>Ежедневная прибавка к репутации от декора (до пяти предметов).</summary>
+        public static int DailyReputationBonus => Mathf.Min(Count(FurnitureEffectType.Decor), 5);
     }
 }

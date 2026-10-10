@@ -43,9 +43,21 @@ namespace NaSvyazi.Player
         /// </summary>
         public bool InputLocked { get; private set; }
 
+        /// <summary>Множитель скорости (например, бодрость от кофе из соседней кофейни).</summary>
+        public static float SpeedMultiplier { get; set; } = 1f;
+
         private void Awake()
         {
             controller = GetComponent<CharacterController>();
+            SpeedMultiplier = 1f;
+
+            // Покупатели видят игрока как препятствие и обходят его, а не упираются.
+            UnityEngine.AI.NavMeshObstacle obstacle = gameObject.AddComponent<UnityEngine.AI.NavMeshObstacle>();
+            obstacle.shape = UnityEngine.AI.NavMeshObstacleShape.Capsule;
+            obstacle.radius = 0.35f;
+            obstacle.height = 1.8f;
+            obstacle.center = new Vector3(0f, 0.9f, 0f);
+            obstacle.carving = false;
         }
 
         private void Start()
@@ -87,7 +99,7 @@ namespace NaSvyazi.Player
         private void HandleMovement()
         {
             Vector2 input = InputLocked ? Vector2.zero : GameInput.Move;
-            float speed = GameInput.Sprint ? sprintSpeed : walkSpeed;
+            float speed = (GameInput.Sprint ? sprintSpeed : walkSpeed) * SpeedMultiplier;
 
             Vector3 move = (transform.right * input.x + transform.forward * input.y) * speed;
 

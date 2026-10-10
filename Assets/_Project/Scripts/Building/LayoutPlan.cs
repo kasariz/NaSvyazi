@@ -56,25 +56,25 @@ namespace NaSvyazi.Building
             new LayoutStage
             {
                 name = "Расширение зала", description = "Зал становится шире на 4 м — место ещё под несколько стеллажей.",
-                price = 8000, minLevel = 2, extraRent = 300,
+                price = 12000, minLevel = 2, extraRent = 300,
                 areas = new[] { Area(0f, -10f, 4f, 0f) }
             },
             new LayoutStage
             {
                 name = "Расширение зала II", description = "Ещё 4 м к востоку: витрина салона растягивается на всю улицу.",
-                price = 15000, minLevel = 3, extraRent = 400,
+                price = 22000, minLevel = 3, extraRent = 400,
                 areas = new[] { Area(4f, -10f, 8f, 0f) }
             },
             new LayoutStage
             {
                 name = "Второй зал", description = "Новая комната 8 × 7 м за аркой в задней стене зала.",
-                price = 25000, minLevel = 4, extraRent = 700,
+                price = 40000, minLevel = 4, extraRent = 700,
                 areas = new[] { Area(0f, 0f, 8f, 7f) }
             },
             new LayoutStage
             {
                 name = "Расширение второго зала", description = "Второй зал вырастает до 8 × 12 м.",
-                price = 30000, minLevel = 5, extraRent = 500,
+                price = 55000, minLevel = 6, extraRent = 500,
                 areas = new[] { Area(0f, 7f, 8f, 12f) }
             },
         };
@@ -90,13 +90,13 @@ namespace NaSvyazi.Building
             new LayoutStage
             {
                 name = "Расширение склада", description = "Склад вырастает вглубь до 6 × 9 м.",
-                price = 4000, minLevel = 2, extraRent = 150,
+                price = 6000, minLevel = 2, extraRent = 150,
                 areas = new[] { Area(-14f, -5f, -8f, -1f) }
             },
             new LayoutStage
             {
                 name = "Расширение склада II", description = "Склад 6 × 14 м — хватит места для больших поставок.",
-                price = 9000, minLevel = 3, extraRent = 250,
+                price = 14000, minLevel = 4, extraRent = 250,
                 areas = new[] { Area(-14f, -1f, -8f, 4f) }
             },
         };
@@ -142,6 +142,8 @@ namespace NaSvyazi.Building
             Area(-9.2f, -7.6f, -6.8f, -5.6f),   // дверь между складом и залом
             Area(2.2f, -1.4f, 5.8f, 1.4f),      // арка во второй зал
             Area(-5.5f, -8.2f, -4.1f, -2.4f),   // очередь к кассе
+            Area(-16.6f, -11.4f, -14.8f, -9.9f), // вход в кофейню
+            Area(8.7f, -11.4f, 10.5f, -9.9f),   // вход в цветочный
             Area(-6f, -2.4f, -2f, -0.1f),       // место кассира за прилавком
         };
     }

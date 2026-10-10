@@ -75,6 +75,18 @@ namespace NaSvyazi.Save
                     data.skills.Add(new SkillEntry { id = pair.Key, rank = pair.Value });
             data.eventId = StoreEventManager.CurrentId ?? "";
 
+            if (UpgradeManager.Instance != null)
+            {
+                data.shelfTier = UpgradeManager.Instance.ShelfTier;
+                data.hasCart = UpgradeManager.Instance.HasCart;
+                if (UpgradeManager.Instance.Cart != null)
+                {
+                    data.cartPosition = UpgradeManager.Instance.Cart.transform.position;
+                    data.cartRotation = UpgradeManager.Instance.Cart.transform.rotation;
+                }
+            }
+            if (Story.LoreManager.Instance != null) data.letters = Story.LoreManager.Instance.GetShown();
+
             foreach (PlacedFurniture f in FindObjectsByType<PlacedFurniture>(FindObjectsSortMode.None))
             {
                 data.furniture.Add(new FurnitureEntry
@@ -168,6 +180,11 @@ namespace NaSvyazi.Save
                 SkillManager.Instance.SetRanks(ranks);
             }
             if (StoreEventManager.Instance != null) StoreEventManager.Instance.SetCurrent(data.eventId);
+            // Ярусы полок — до восстановления товара на полках, тележка — до коробок (на ней могут стоять).
+            if (UpgradeManager.Instance != null)
+                UpgradeManager.Instance.SetState(data.shelfTier, data.hasCart, data.cartPosition, data.cartRotation);
+            if (Story.LoreManager.Instance != null && data.letters != null)
+                Story.LoreManager.Instance.SetShown(data.letters);
 
             RestoreFurniture(data.furniture);
 
@@ -342,6 +359,11 @@ namespace NaSvyazi.Save
         public List<BoxEntry> boxes = new List<BoxEntry>();
         public List<SkillEntry> skills = new List<SkillEntry>();
         public string eventId = "";
+        public int shelfTier;
+        public bool hasCart;
+        public Vector3 cartPosition;
+        public Quaternion cartRotation = Quaternion.identity;
+        public List<string> letters = new List<string>();
     }
 
     [Serializable]

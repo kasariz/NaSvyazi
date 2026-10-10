@@ -23,6 +23,12 @@ namespace NaSvyazi.UI
 
         public bool IsOpen => Current == this;
 
+        /// <summary>Закрыть открытое окно (например, перед отчётом за день).</summary>
+        public static void CloseCurrent()
+        {
+            if (Current != null) Current.Close();
+        }
+
         public void Open(PlayerController player)
         {
             if (Current != null) return;

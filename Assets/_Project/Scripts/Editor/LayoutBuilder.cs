@@ -254,6 +254,7 @@ namespace NaSvyazi.EditorTools
             BuildFacade(Group(r, "Facade"));
             BuildSalon(Group(r, "Salon"));
             BuildStorage(Group(r, "Storage"));
+            BuildNeighbors(r);
 
             // Покупатели не ходят через дверь склада (игрок — ходит).
             GameObject blocker = new GameObject("InnerDoor_NavBlock");
@@ -332,11 +333,7 @@ namespace NaSvyazi.EditorTools
             Material shutter = LMat("M_L_Shutter", new Color(0.66f, 0.68f, 0.7f), 0.35f);
             Material hazard = LMat("M_L_Hazard", new Color(0.96f, 0.76f, 0.1f), 0.3f);
 
-            // Соседи по улице.
-            NeighborFacade(f, "Neighbor_Cafe", -20f, -14f, new Color(0.42f, 0.29f, 0.21f), "КОФЕЙНЯ «ЗЕРНО»",
-                new Color(1f, 0.9f, 0.75f));
-            NeighborFacade(f, "Neighbor_Flowers", 8f, 14f, new Color(0.27f, 0.45f, 0.33f), "ЦВЕТЫ",
-                new Color(0.95f, 0.98f, 0.92f));
+            // Соседи по улице (кофейня и цветочный) — заходить можно, см. BuildNeighbors.
 
             // Склад: стена с воротами, короб рольставни, жёлтые отбойники, вывеска.
             Transform st = Group(f, "StorageFront");
@@ -421,22 +418,6 @@ namespace NaSvyazi.EditorTools
                 Box(parent, "DoorHead", new Vector3(d0, 2.3f, -10.06f), new Vector3(d1, 2.36f, -9.94f), frame, true);
                 Box(parent, "Transom", new Vector3(d0, 2.36f, -10.02f), new Vector3(d1, 3f, -9.98f), glass, true, 0f, false);
             }
-        }
-
-        private static void NeighborFacade(Transform parent, string name, float x0, float x1, Color wall, string sign,
-            Color signColor)
-        {
-            Material wallMat = LMat($"M_L_{name}", wall, 0.2f);
-            Material window = LMat("M_L_DarkGlass", new Color(0.1f, 0.12f, 0.14f), 0.9f);
-            Material frame = LMat("M_L_Frame", new Color(0.16f, 0.17f, 0.19f), 0.4f);
-
-            Transform n = Group(parent, name);
-            Box(n, "Wall", new Vector3(x0, 0f, -10.1f), new Vector3(x1, FacadeTop, -9.9f), wallMat, true);
-            Box(n, "Window", new Vector3(x0 + 0.6f, 0.5f, -10.13f), new Vector3(x1 - 0.6f, 2.7f, -10.1f), window, false);
-            Box(n, "WindowFrame", new Vector3(x0 + 0.55f, 0.45f, -10.12f), new Vector3(x1 - 0.55f, 0.5f, -10.1f), frame, false);
-            float cx = (x0 + x1) * 0.5f;
-            WorldLabel(n, "Sign", new Vector3(cx, 3.5f, -10.12f), Quaternion.identity, new Vector2(x1 - x0 - 1f, 0.6f),
-                sign, signColor, 4f);
         }
 
         // --- Торговый зал ---

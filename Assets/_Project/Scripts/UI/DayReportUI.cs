@@ -63,6 +63,8 @@ namespace NaSvyazi.UI
             s.AppendLine($"Ушли из очереди:  {report.leftQueue}");
             s.Append($"Консультации (точно / дороже / мимо):  " +
                      $"{report.consultBest} / {report.consultAcceptable} / {report.consultFailed}");
+            if (report.dirtPenalty > 0)
+                s.Append($"\nГрязный пол к закрытию:  −{report.dirtPenalty} к репутации");
             if (report.theftItems > 0 || report.thievesCaught > 0)
                 s.Append($"\nУкрадено товаров:  {report.theftItems} на {EconomyManager.Format(report.theftLoss)}" +
                          $"   ·   задержано воришек:  {report.thievesCaught}");

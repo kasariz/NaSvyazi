@@ -9,6 +9,7 @@ using NaSvyazi.Tariffs;
 using TMPro;
 using UnityEngine;
 using UnityEngine.AI;
+using Unity.AI.Navigation;
 
 namespace NaSvyazi.Customers
 {
@@ -121,9 +122,28 @@ namespace NaSvyazi.Customers
             State == CustomerState.InQueue && queue != null && queue.IndexOf(this) == 0
             && queueIndex == 0 && IsNear(queue.GetSpot(0), 0.4f);
 
+        // Приоритет обхода: чем меньше число, тем «главнее» агент — остальные обходят его.
+        private const int WalkingPriority = 50;
+        private const int StandingPriority = 25;
+
         private void Awake()
         {
             agent = GetComponent<NavMeshAgent>();
+
+            // Покупатели не толкаются и не стопорятся друг о друга: качественный обход,
+            // немного разный приоритет у каждого, чуть меньший радиус.
+            agent.obstacleAvoidanceType = ObstacleAvoidanceType.HighQualityObstacleAvoidance;
+            agent.avoidancePriority = WalkingPriority + Random.Range(-5, 6);
+            agent.radius = 0.27f;
+
+            // Тело покупателя — триггер: игрок проходит сквозь толпу и не застревает,
+            // а прицел (E — задержать вора) по-прежнему его видит.
+            foreach (Collider c in GetComponents<Collider>()) c.isTrigger = true;
+
+            // Покупатели не попадают в навигационную сетку, когда она перестраивается днём
+            // (после расстановки мебели) — иначе на их месте появлялись «дыры».
+            NavMeshModifier modifier = gameObject.AddComponent<NavMeshModifier>();
+            modifier.ignoreFromBuild = true;
 
             // Случайный цвет одежды, чтобы покупатели различались.
             if (bodyRenderer != null)
@@ -198,8 +218,7 @@ namespace NaSvyazi.Customers
                 case CustomerState.GoingToShelf:
                     if (HasArrived())
                     {
-                        State = CustomerState.Browsing;
-                        stateTimer = 0f;
+                        SetState(CustomerState.Browsing);
                         FaceTowards(targetSection != null ? targetSection.transform.position : transform.position);
                     }
                     else if (stateTimer > stuckTimeout)
@@ -249,7 +268,9 @@ namespace NaSvyazi.Customers
                 {
                     targetSection = section;
                     SetState(CustomerState.GoingToShelf);
-                    MoveTo(section.CustomerStandPoint);
+                    // Не все в одну точку: место перед полкой немного смещено вдоль неё.
+                    Vector3 spread = section.transform.right * Random.Range(-0.35f, 0.35f);
+                    MoveTo(section.CustomerStandPoint + spread);
                     return;
                 }
 
@@ -444,6 +465,10 @@ namespace NaSvyazi.Customers
         {
             State = state;
             stateTimer = 0f;
+
+            // Стоящие в очереди и у полок «главнее» идущих: идущие обходят их, а не расталкивают.
+            bool standing = state == CustomerState.InQueue || state == CustomerState.Browsing;
+            agent.avoidancePriority = (standing ? StandingPriority : WalkingPriority) + Random.Range(-5, 6);
         }
 
         private void MoveTo(Vector3 point)

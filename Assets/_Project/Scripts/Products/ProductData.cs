@@ -60,6 +60,10 @@ namespace NaSvyazi.Products
             {
                 model = Instantiate(modelPrefab, root.transform);
             }
+            else if (ProductModels.Build(this, root.transform))
+            {
+                model = root; // модель из простых фигур (см. ProductModels)
+            }
             else
             {
                 model = GameObject.CreatePrimitive(PrimitiveType.Cube);

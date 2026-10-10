@@ -52,12 +52,16 @@ namespace NaSvyazi.UI
             public Button button;
             public TextMeshProUGUI note;    // цена / требование
             public Image stripe;            // цветная метка состояния (для строк развития)
+            public TextMeshProUGUI title;
+            public TextMeshProUGUI description;
         }
 
         private readonly Dictionary<FurnitureData, ActionItem> furnitureCards = new Dictionary<FurnitureData, ActionItem>();
         private readonly List<KeyValuePair<LayoutZone, int>> stageKeys = new List<KeyValuePair<LayoutZone, int>>();
         private readonly List<ActionItem> stageRows = new List<ActionItem>();
         private ActionItem cashierRow;
+        private ActionItem shelvesRow;
+        private ActionItem cartRow;
 
         private GameObject root;
         private TextMeshProUGUI balanceText;
@@ -331,6 +335,8 @@ namespace NaSvyazi.UI
                 }
             }
 
+            RefreshEquipment(level);
+
             StaffManager staff = StaffManager.Instance;
             if (cashierRow != null && staff != null)
             {
@@ -344,6 +350,53 @@ namespace NaSvyazi.UI
                     SetStageState(cashierRow, $"Зарплата {EconomyManager.Format(staff.CashierWage)} в день",
                         UIFactory.AccentColor, true, "Нанять");
             }
+        }
+
+        private void RefreshEquipment(int level)
+        {
+            UpgradeManager upgrades = UpgradeManager.Instance;
+            if (upgrades == null || shelvesRow == null) return;
+
+            UpgradeManager.ShelfUpgrade? next = upgrades.NextShelfUpgrade;
+            if (next == null)
+                SetStageState(shelvesRow, "Все ярусы открыты", UIFactory.PositiveColor, false, "Открыто");
+            else
+            {
+                UpgradeManager.ShelfUpgrade u = next.Value;
+                SetRowTexts(shelvesRow, u.name, u.description);
+                if (level < u.minLevel)
+                    SetStageState(shelvesRow, $"Нужен уровень салона {u.minLevel}", UIFactory.MutedTextColor, false, "Закрыто");
+                else
+                    SetStageState(shelvesRow, EconomyManager.Format(u.price),
+                        balanceOk(u.price) ? UIFactory.AccentColor : UIFactory.NegativeColor, balanceOk(u.price), "Купить");
+            }
+
+            if (upgrades.HasCart)
+                SetStageState(cartRow, "Куплена — стоит там, где её оставили", UIFactory.PositiveColor, false, "Куплено");
+            else if (level < upgrades.CartMinLevel)
+                SetStageState(cartRow, $"Нужен уровень салона {upgrades.CartMinLevel}", UIFactory.MutedTextColor, false, "Закрыто");
+            else
+                SetStageState(cartRow, EconomyManager.Format(upgrades.CartPrice),
+                    balanceOk(upgrades.CartPrice) ? UIFactory.AccentColor : UIFactory.NegativeColor,
+                    balanceOk(upgrades.CartPrice), "Купить");
+        }
+
+        private static void SetRowTexts(ActionItem item, string title, string description)
+        {
+            if (item.title != null) item.title.text = title;
+            if (item.description != null) item.description.text = description;
+        }
+
+        private void BuyShelfUpgrade()
+        {
+            if (UpgradeManager.Instance != null) UpgradeManager.Instance.TryUpgradeShelves();
+            Refresh();
+        }
+
+        private void BuyCart()
+        {
+            if (UpgradeManager.Instance != null) UpgradeManager.Instance.TryBuyCart();
+            Refresh();
         }
 
         private static void SetStageState(ActionItem item, string note, Color color, bool interactable, string label)
@@ -611,6 +664,12 @@ namespace NaSvyazi.UI
             for (int i = 1; i < LayoutPlan.Storage.Length; i++)
                 AddStageRow(list, LayoutZone.Storage, i);
 
+            AddSection(list, "ОБОРУДОВАНИЕ", "Улучшения, которые экономят время.");
+            shelvesRow = CreateDevRow(list, UpgradeManager.ShelfUpgrades[0].name, UpgradeManager.ShelfUpgrades[0].description,
+                BuyShelfUpgrade);
+            cartRow = CreateDevRow(list, "Тележка для коробок",
+                "До 8 коробок за раз: E — катить, ЛКМ с коробкой — поставить на тележку.", BuyCart);
+
             AddSection(list, "ПЕРСОНАЛ", "");
             cashierRow = CreateDevRow(list, "Кассир",
                 "Сам сканирует товар, принимает оплату и консультирует по тарифам (не всегда идеально).", ToggleCashier);
@@ -666,7 +725,7 @@ namespace NaSvyazi.UI
             Button button = UIFactory.CreateButton("Action", row, "", onClick, UIFactory.AccentColor, 20f);
             UIFactory.SetSize(button, width: 150f, height: UIFactory.ButtonHeight);
 
-            return new ActionItem { button = button, note = note, stripe = stripe };
+            return new ActionItem { button = button, note = note, stripe = stripe, title = name, description = desc };
         }
     }
 }

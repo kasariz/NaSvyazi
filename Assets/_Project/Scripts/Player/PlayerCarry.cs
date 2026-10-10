@@ -16,6 +16,12 @@ namespace NaSvyazi.Player
         [SerializeField] private float dropForwardSpeed = 1.5f;
 
         public Carryable Held { get; private set; }
+
+        private void Awake()
+        {
+            // Руки героя (видны, когда он что-то несёт или катит тележку).
+            if (GetComponent<PlayerHands>() == null) gameObject.AddComponent<PlayerHands>();
+        }
         public bool IsCarrying => Held != null;
 
         /// <summary>Попытаться взять предмет. Возвращает false, если руки заняты.</summary>

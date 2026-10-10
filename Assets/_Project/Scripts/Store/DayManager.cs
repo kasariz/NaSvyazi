@@ -145,7 +145,15 @@ namespace NaSvyazi.Store
                 if (wages > 0) economy.Charge(wages, "Зарплата персонала");
             }
 
+            int dirtPenalty = CleaningManager.Instance != null ? CleaningManager.Instance.ApplyEndOfDayPenalty() : 0;
+
             DayReport report = DayReport.Collect(Day, rent, wages);
+            report.dirtPenalty = dirtPenalty;
+
+            // Если в момент окончания дня открыт терминал или идёт расстановка мебели,
+            // отчёт не мог открыться и новый день не начинался. Закрываем всё заранее.
+            if (Building.FurniturePlacer.Instance != null) Building.FurniturePlacer.Instance.CancelPlacement();
+            ModalWindow.CloseCurrent();
 
             if (reportUI != null)
                 reportUI.ShowReport(report, StartNextDay, FindAnyObjectByType<PlayerController>());
@@ -218,6 +226,7 @@ namespace NaSvyazi.Store
         public int theftLoss;
         public int thievesCaught;
         public string eventName;
+        public int dirtPenalty;
 
         public int Profit => income - expenses;
 

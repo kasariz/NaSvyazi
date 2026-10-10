@@ -19,6 +19,9 @@ namespace NaSvyazi.Building
         [Tooltip("Места под коробки (локальные координаты центров)")]
         [SerializeField] private List<Vector3> slots = new List<Vector3>();
 
+        [Tooltip("Куда ставится коробка — для подсказки («на склад», «на тележку»)")]
+        [SerializeField] private string placeName = "на склад";
+
         private readonly List<Transform> anchors = new List<Transform>();
 
         private void Awake()
@@ -95,7 +98,7 @@ namespace NaSvyazi.Building
         public string GetPrimaryPrompt(PlayerInteractor interactor)
         {
             if (!(interactor.Carry.Held is ProductBox)) return null;
-            return FreeSlots > 0 ? $"Поставить коробку на склад (мест: {FreeSlots})" : "На складе нет мест";
+            return FreeSlots > 0 ? $"Поставить коробку {placeName} (мест: {FreeSlots})" : "Свободных мест нет";
         }
 
         public void DoPrimary(PlayerInteractor interactor)
