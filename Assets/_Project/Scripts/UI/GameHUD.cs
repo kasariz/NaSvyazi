@@ -34,6 +34,11 @@ namespace NaSvyazi.UI
         private TextMeshProUGUI notificationText;
         private float notificationTimer;
         private TextMeshProUGUI goalText;
+        private Image levelUpBanner;
+        private TextMeshProUGUI levelUpTitle;
+        private TextMeshProUGUI levelUpText;
+        private float levelUpTimer;
+        private int shownLevel = -1;
         private float goalTimer;
         private string shownGoal;
         private float flashTimer;
@@ -74,6 +79,29 @@ namespace NaSvyazi.UI
 
             RefreshEventAndSkills();
             RefreshGoal();
+            PlaceGoalPanel();
+            UpdateLevelUpBanner();
+        }
+
+        private void ShowLevelUp(int level)
+        {
+            levelUpTitle.text = $"Уровень салона {level}!";
+            levelUpText.text = "Получено очко навыка — нажмите <b>[K]</b>, чтобы его вложить.\n" +
+                               "В терминале могли открыться новые товары, мебель и расширения.";
+            levelUpBanner.gameObject.SetActive(true);
+            levelUpTimer = 5f;
+        }
+
+        private void UpdateLevelUpBanner()
+        {
+            if (levelUpTimer <= 0f) return;
+            levelUpTimer -= Time.unscaledDeltaTime;
+
+            // Появление и исчезновение: первые и последние полсекунды — плавно.
+            float alpha = Mathf.Clamp01(Mathf.Min((5f - levelUpTimer) / 0.4f, levelUpTimer / 0.6f));
+            CanvasGroup group = levelUpBanner.GetComponent<CanvasGroup>();
+            group.alpha = alpha;
+            if (levelUpTimer <= 0f) levelUpBanner.gameObject.SetActive(false);
         }
 
         /// <summary>Плашка цели игры и предупреждение о долге (обновляется дважды в секунду).</summary>
@@ -90,6 +118,14 @@ namespace NaSvyazi.UI
             goalText.transform.parent.gameObject.SetActive(!string.IsNullOrEmpty(text));
         }
 
+        /// <summary>Плашка цели под плашкой события (или под часами, если события нет).</summary>
+        private void PlaceGoalPanel()
+        {
+            RectTransform goal = (RectTransform)goalText.transform.parent;
+            float y = eventPanel.gameObject.activeSelf ? -170f : -92f;
+            if (!Mathf.Approximately(goal.anchoredPosition.y, y)) goal.anchoredPosition = new Vector2(24f, y);
+        }
+
         /// <summary>Плашки «событие дня» и «есть свободные очки навыков» (обновляются при изменении).</summary>
         private void RefreshEventAndSkills()
         {
@@ -98,7 +134,10 @@ namespace NaSvyazi.UI
             {
                 shownEvent = current;
                 eventPanel.gameObject.SetActive(!string.IsNullOrEmpty(current));
-                eventText.text = $"Событие дня: {current}";
+                string effects = StoreEventManager.CurrentEffects;
+                eventText.text = string.IsNullOrEmpty(effects)
+                    ? $"<b>Событие дня: {current}</b>"
+                    : $"<b>Событие дня: {current}</b>\n<size=80%>{effects}</size>";
             }
 
             int points = SkillManager.Instance != null ? SkillManager.Instance.AvailablePoints : 0;
@@ -106,7 +145,18 @@ namespace NaSvyazi.UI
             {
                 shownPoints = points;
                 skillPanel.gameObject.SetActive(points > 0);
-                skillText.text = $"Навыки [K]: свободно очков — {points}";
+                skillText.text = points == 1
+                    ? "<b>Есть очко навыка!</b>  Нажмите  <b>[K]</b>"
+                    : $"<b>Очков навыков: {points}</b>  Нажмите  <b>[K]</b>";
+            }
+
+            // Плашка навыков пульсирует, пока очки не потрачены, — её трудно не заметить.
+            if (points > 0)
+            {
+                float pulse = 0.5f + 0.5f * Mathf.Sin(Time.unscaledTime * 4f);
+                skillPanel.color = Color.Lerp(new Color(0.55f, 0.1f, 0.35f, 0.9f), UIFactory.AccentColor, pulse);
+                float scale = 1f + 0.04f * pulse;
+                skillPanel.rectTransform.localScale = new Vector3(scale, scale, 1f);
             }
         }
 
@@ -128,8 +178,23 @@ namespace NaSvyazi.UI
 
         private void OnLevelChanged(int level, int xp, int next)
         {
-            levelText.text = $"Уровень {level}   ·   {xp}/{next} опыта";
-            float fill = next > 0 ? Mathf.Clamp01((float)xp / next) : 1f;
+            // Баннер «Новый уровень» по центру экрана (не при загрузке сохранения).
+            if (shownLevel > 0 && level > shownLevel && Time.timeSinceLevelLoad > 1f) ShowLevelUp(level);
+            shownLevel = level;
+
+            LevelManager lm = LevelManager.Instance;
+            float fill;
+            if (lm != null && lm.IsMaxLevel)
+            {
+                // Максимальный уровень: опыт копится в «мастерство» — дополнительные очки навыков.
+                levelText.text = $"Уровень {level} (макс.)   ·   мастерство {lm.MasteryProgress}/{lm.MasteryStep}";
+                fill = Mathf.Clamp01((float)lm.MasteryProgress / lm.MasteryStep);
+            }
+            else
+            {
+                levelText.text = $"Уровень {level}   ·   {xp}/{next} опыта";
+                fill = next > 0 ? Mathf.Clamp01((float)xp / next) : 1f;
+            }
             levelBar.rectTransform.anchorMax = new Vector2(fill, 1f);
         }
 
@@ -205,13 +270,19 @@ namespace NaSvyazi.UI
 
             levelText = UIFactory.CreateText("LevelText", levelPanel.transform, "", 20f,
                 UIFactory.TextColor, TextAlignmentOptions.MidlineRight);
+            levelText.enableAutoSizing = true;
+            levelText.fontSizeMin = 13f;
+            levelText.fontSizeMax = 20f;
             UIFactory.Stretch(levelText.rectTransform, 12f);
 
             eventPanel = UIFactory.CreatePanel("Event", canvas.transform, new Color(0.86f, 0.18f, 0.55f, 0.85f));
             UIFactory.Place(eventPanel.rectTransform, new Vector2(0f, 1f), new Vector2(0f, 1f),
-                new Vector2(24f, -92f), new Vector2(460f, 46f));
+                new Vector2(24f, -92f), new Vector2(460f, 70f));
             eventText = UIFactory.CreateText("EventText", eventPanel.transform, "", 22f, Color.white);
-            UIFactory.Stretch(eventText.rectTransform, 14f);
+            eventText.enableAutoSizing = true;
+            eventText.fontSizeMin = 14f;
+            eventText.fontSizeMax = 22f;
+            UIFactory.Stretch(eventText.rectTransform, 10f);
             eventPanel.gameObject.SetActive(false);
 
             // Цель игры — слева под плашкой события; высота подстраивается под текст.
@@ -229,14 +300,37 @@ namespace NaSvyazi.UI
 
             skillPanel = UIFactory.CreatePanel("Skills", canvas.transform, new Color(0.08f, 0.09f, 0.11f, 0.8f));
             UIFactory.Place(skillPanel.rectTransform, new Vector2(1f, 1f), new Vector2(1f, 1f),
-                new Vector2(-24f, -200f), new Vector2(300f, 42f));
-            skillText = UIFactory.CreateText("SkillsText", skillPanel.transform, "", 18f,
-                UIFactory.AccentColor, TextAlignmentOptions.MidlineRight);
+                new Vector2(-24f, -200f), new Vector2(300f, 50f));
+            skillPanel.rectTransform.pivot = new Vector2(1f, 1f);
+            skillText = UIFactory.CreateText("SkillsText", skillPanel.transform, "", 21f,
+                Color.white, TextAlignmentOptions.Center);
             skillText.enableAutoSizing = true;
-            skillText.fontSizeMin = 12f;
-            skillText.fontSizeMax = 18f;
+            skillText.fontSizeMin = 14f;
+            skillText.fontSizeMax = 21f;
             UIFactory.Stretch(skillText.rectTransform, 12f);
             skillPanel.gameObject.SetActive(false);
+
+            // Баннер нового уровня — по центру, чуть выше середины экрана.
+            levelUpBanner = UIFactory.CreatePanel("LevelUp", canvas.transform, new Color(0.08f, 0.09f, 0.11f, 0.92f));
+            UIFactory.Place(levelUpBanner.rectTransform, new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f),
+                new Vector2(0f, 220f), new Vector2(820f, 170f));
+            levelUpBanner.gameObject.AddComponent<CanvasGroup>().blocksRaycasts = false;
+            levelUpBanner.raycastTarget = false;
+            Image stripe = UIFactory.CreatePanel("Stripe", levelUpBanner.transform, UIFactory.AccentColor);
+            stripe.rectTransform.anchorMin = new Vector2(0f, 1f);
+            stripe.rectTransform.anchorMax = new Vector2(1f, 1f);
+            stripe.rectTransform.pivot = new Vector2(0.5f, 1f);
+            stripe.rectTransform.sizeDelta = new Vector2(0f, 8f);
+            levelUpTitle = UIFactory.CreateText("Title", levelUpBanner.transform, "", 44f, Color.white,
+                TextAlignmentOptions.Center);
+            levelUpTitle.fontStyle = FontStyles.Bold;
+            UIFactory.Place(levelUpTitle.rectTransform, new Vector2(0.5f, 1f), new Vector2(0.5f, 1f),
+                new Vector2(0f, -18f), new Vector2(780f, 60f));
+            levelUpText = UIFactory.CreateText("Text", levelUpBanner.transform, "", 22f, UIFactory.TextColor,
+                TextAlignmentOptions.Center);
+            UIFactory.Place(levelUpText.rectTransform, new Vector2(0.5f, 0f), new Vector2(0.5f, 0f),
+                new Vector2(0f, 16f), new Vector2(780f, 76f));
+            levelUpBanner.gameObject.SetActive(false);
 
             notificationPanel = UIFactory.CreatePanel("Notification", canvas.transform,
                 new Color(0.08f, 0.09f, 0.11f, 0.9f));

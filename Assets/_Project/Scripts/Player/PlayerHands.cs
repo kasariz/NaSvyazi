@@ -8,6 +8,7 @@ namespace NaSvyazi.Player
     /// или катит тележку: кисти — по бокам предмета или на ручке тележки,
     /// рукава тянутся к ним от плеч. Собираются из простых фигур при запуске.
     /// </summary>
+    [DefaultExecutionOrder(100)] // после швабры: её поза уже посчитана в этом кадре
     public class PlayerHands : MonoBehaviour
     {
         private static readonly int BaseColorId = Shader.PropertyToID("_BaseColor");
@@ -25,9 +26,11 @@ namespace NaSvyazi.Player
 
         private class Arm
         {
+            public Transform root;
             public Transform sleeve;
             public Transform cuff;
-            public Transform hand;
+            public Transform hand;    // ладонь с пальцами (собраны внутри)
+            public bool isLeft;
         }
 
         private void Start()
@@ -39,21 +42,55 @@ namespace NaSvyazi.Player
             if (cam == null) return;
             c.nearClipPlane = Mathf.Min(c.nearClipPlane, 0.05f); // руки близко к камере — не обрезать
 
-            left = BuildArm("Arm_L");
-            right = BuildArm("Arm_R");
+            left = BuildArm("Arm_L", true);
+            right = BuildArm("Arm_R", false);
             SetVisible(false);
         }
 
-        private Arm BuildArm(string name)
+        private Arm BuildArm(string name, bool isLeft)
         {
             Transform root = new GameObject(name).transform;
             root.SetParent(cam, false);
-            return new Arm
+            Arm arm = new Arm
             {
+                root = root,
+                isLeft = isLeft,
                 sleeve = Part(PrimitiveType.Capsule, root, sleeveColor),
                 cuff = Part(PrimitiveType.Cylinder, root, cuffColor),
-                hand = Part(PrimitiveType.Capsule, root, skinColor)
+                hand = new GameObject("Hand").transform
             };
+            arm.hand.SetParent(root, false);
+            BuildHand(arm.hand, isLeft);
+            return arm;
+        }
+
+        /// <summary>
+        /// Кисть в локальных осях: Y — вдоль руки к пальцам, Z — от ладони наружу (тыльная сторона).
+        /// Ладонь — скруглённый брусок, сжатые пальцы — валик, большой палец сбоку.
+        /// </summary>
+        private void BuildHand(Transform hand, bool isLeft)
+        {
+            const float side = 1f; // большой палец по +X кисти; сторону выбирает Pose (зеркалированием)
+
+            Transform palm = Part(PrimitiveType.Cube, hand, skinColor);
+            palm.localPosition = new Vector3(0f, 0.005f, 0f);
+            palm.localScale = new Vector3(0.075f, 0.085f, 0.032f);
+
+            // Сжатые пальцы: валик поперёк ладони, чуть загнут внутрь.
+            Transform fingers = Part(PrimitiveType.Capsule, hand, skinColor);
+            fingers.localPosition = new Vector3(0f, 0.055f, -0.012f);
+            fingers.localRotation = Quaternion.Euler(0f, 0f, 90f);
+            fingers.localScale = new Vector3(0.032f, 0.04f, 0.032f);
+
+            Transform knuckles = Part(PrimitiveType.Capsule, hand, skinColor);
+            knuckles.localPosition = new Vector3(0f, 0.045f, 0.008f);
+            knuckles.localRotation = Quaternion.Euler(0f, 0f, 90f);
+            knuckles.localScale = new Vector3(0.026f, 0.039f, 0.026f);
+
+            Transform thumb = Part(PrimitiveType.Capsule, hand, skinColor);
+            thumb.localPosition = new Vector3(0.04f * side, 0.02f, -0.012f);
+            thumb.localRotation = Quaternion.Euler(0f, 0f, -35f * side);
+            thumb.localScale = new Vector3(0.022f, 0.028f, 0.022f);
         }
 
         private static Transform Part(PrimitiveType type, Transform parent, Color color)
@@ -99,6 +136,9 @@ namespace NaSvyazi.Player
 
             if (carry == null || carry.Held == null) return false;
 
+            // Предмет со своими хватами (швабра — за черенок).
+            if (carry.Held.TryGetGrips(out leftGrip, out rightGrip)) return true;
+
             // Бока предмета по его габаритам (в плоскости экрана).
             Bounds bounds = new Bounds(carry.Held.transform.position, Vector3.zero);
             foreach (Renderer r in carry.Held.GetComponentsInChildren<Renderer>())
@@ -114,7 +154,10 @@ namespace NaSvyazi.Player
         private static Vector3 Abs(Vector3 v) => new Vector3(Mathf.Abs(v.x), Mathf.Abs(v.y), Mathf.Abs(v.z));
 
         /// <summary>Рукав от плеча к кисти, манжета и кисть у цели.</summary>
-        private static void Pose(Arm arm, Vector3 from, Vector3 to)
+        private Vector3 camRight => cam.right;
+        private Vector3 camForward => cam.forward;
+
+        private void Pose(Arm arm, Vector3 from, Vector3 to)
         {
             Vector3 dir = to - from;
             float length = Mathf.Max(0.1f, dir.magnitude - 0.06f);
@@ -126,8 +169,16 @@ namespace NaSvyazi.Player
             arm.cuff.SetPositionAndRotation(from + dir.normalized * length, along);
             arm.cuff.localScale = new Vector3(0.09f, 0.015f, 0.09f);
 
-            arm.hand.SetPositionAndRotation(to, along);
-            arm.hand.localScale = new Vector3(0.07f, 0.06f, 0.05f);
+            // Кисть смотрит вдоль руки, ладонью к предмету (внутрь, к центру экрана).
+            Vector3 inward = arm.isLeft ? camRight : -camRight;
+            Vector3 palmNormal = Vector3.ProjectOnPlane(inward, dir.normalized);
+            if (palmNormal.sqrMagnitude < 0.0001f) palmNormal = Vector3.ProjectOnPlane(camForward, dir.normalized);
+            arm.hand.SetPositionAndRotation(to - dir.normalized * 0.03f,
+                Quaternion.LookRotation(-palmNormal.normalized, dir.normalized));
+
+            // Большой палец — сверху, как при настоящем хвате: при необходимости зеркалим кисть.
+            float thumbUp = Vector3.Dot(arm.hand.right, cam.up) >= 0f ? 1f : -1f;
+            arm.hand.localScale = new Vector3(thumbUp, 1f, 1f);
         }
 
         private void SetVisible(bool visible)
@@ -135,9 +186,7 @@ namespace NaSvyazi.Player
             foreach (Arm arm in new[] { left, right })
             {
                 if (arm == null) continue;
-                arm.sleeve.gameObject.SetActive(visible);
-                arm.cuff.gameObject.SetActive(visible);
-                arm.hand.gameObject.SetActive(visible);
+                arm.root.gameObject.SetActive(visible);
             }
         }
     }

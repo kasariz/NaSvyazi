@@ -13,13 +13,19 @@ namespace NaSvyazi.Audio
         Pickup,   // взяли/бросили коробку
         Click,    // нажатие кнопки интерфейса
         DoorBell, // звонок входной двери (пришёл покупатель)
-        Error     // ошибка / недостаточно денег
+        Error,    // ошибка / недостаточно денег
+        Scrub     // швабра по полу
     }
 
     /// <summary>
-    /// Звуковая система. Все звуки синтезируются при запуске из простых волн
-    /// (синус, треугольник, шум) с огибающими — внешние аудиофайлы не нужны,
-    /// поэтому нет вопросов с лицензиями, а размер сборки не растёт.
+    /// Звуковая система. По умолчанию все звуки синтезируются при запуске из простых волн
+    /// (синус, треугольник, шум) с огибающими — внешние аудиофайлы не нужны.
+    ///
+    /// Замена на настоящие звуки: положите аудиофайлы в Assets/_Project/Resources/Sounds/
+    /// с именами по ключу эффекта — scan, purchase, notify, place, pickup, click, doorbell, error,
+    /// scrub, step, music, ambience. Несколько вариантов одного звука — с суффиксом номера
+    /// (step_1, step_2, step_3): при каждом проигрывании выбирается случайный.
+    /// Звук без файла остаётся синтезированным. Подробности — в SOUNDS_AND_MODELS.md.
     /// </summary>
     public class SoundManager : MonoBehaviour
     {
@@ -34,6 +40,14 @@ namespace NaSvyazi.Audio
         [SerializeField] private bool playMusic = true;
 
         private readonly Dictionary<Sfx, AudioClip> clips = new Dictionary<Sfx, AudioClip>();
+        private readonly Dictionary<Sfx, List<AudioClip>> overrides = new Dictionary<Sfx, List<AudioClip>>();
+        private readonly List<AudioClip> stepVariants = new List<AudioClip>();
+        private AudioClip musicOverride;
+        private AudioClip ambienceClip;
+        private AudioSource ambience;
+
+        /// <summary>Папка в Resources, откуда загружаются звуки-замены.</summary>
+        public const string SoundsResourceFolder = "Sounds";
         private AudioSource effects;
         private AudioSource steps;
         private AudioSource music;
@@ -54,6 +68,7 @@ namespace NaSvyazi.Audio
             steps.spatialBlend = 0f;
 
             GenerateClips();
+            LoadOverrides();
 
             if (playMusic)
             {
@@ -61,16 +76,57 @@ namespace NaSvyazi.Audio
                 music.playOnAwake = false;
                 music.loop = true;
                 music.spatialBlend = 0f;
-                music.clip = GenerateMusic();
+                music.clip = musicOverride != null ? musicOverride : GenerateMusic();
                 music.volume = Core.GameSettings.MusicVolume;
                 music.Play();
             }
+
+            // Фон торгового зала (гул голосов, кондиционер) — только если положен файл ambience.
+            if (ambienceClip != null)
+            {
+                ambience = gameObject.AddComponent<AudioSource>();
+                ambience.playOnAwake = false;
+                ambience.loop = true;
+                ambience.spatialBlend = 0f;
+                ambience.clip = ambienceClip;
+                ambience.volume = Core.GameSettings.MusicVolume * 0.6f;
+                ambience.Play();
+            }
+        }
+
+        /// <summary>Загрузить звуки-замены из Resources/Sounds (имя файла = ключ эффекта, суффикс _N — вариант).</summary>
+        private void LoadOverrides()
+        {
+            AudioClip[] found = Resources.LoadAll<AudioClip>(SoundsResourceFolder);
+            foreach (AudioClip clip in found)
+            {
+                string key = BaseName(clip.name);
+                if (key == "music") { musicOverride = clip; continue; }
+                if (key == "ambience") { ambienceClip = clip; continue; }
+                if (key == "step") { stepVariants.Add(clip); continue; }
+
+                if (!System.Enum.TryParse(key, true, out Sfx sfx)) continue;
+                if (!overrides.TryGetValue(sfx, out List<AudioClip> list))
+                    overrides[sfx] = list = new List<AudioClip>();
+                list.Add(clip);
+            }
+            if (found.Length > 0) Debug.Log($"[Звук] Загружено файлов-замен: {found.Length}");
+        }
+
+        /// <summary>«step_2» → «step», «doorbell» → «doorbell».</summary>
+        private static string BaseName(string name)
+        {
+            string n = name.ToLowerInvariant().Trim();
+            int underscore = n.LastIndexOf('_');
+            if (underscore > 0 && int.TryParse(n.Substring(underscore + 1), out _)) n = n.Substring(0, underscore);
+            return n;
         }
 
         /// <summary>Изменить громкость музыки (из настроек).</summary>
         public static void SetMusicVolume(float volume)
         {
             if (Instance != null && Instance.music != null) Instance.music.volume = volume;
+            if (Instance != null && Instance.ambience != null) Instance.ambience.volume = volume * 0.6f;
         }
 
         /// <summary>
@@ -132,14 +188,25 @@ namespace NaSvyazi.Audio
         public static void Play(Sfx sfx, float volume = 1f)
         {
             if (Instance == null) return;
-            if (Instance.clips.TryGetValue(sfx, out AudioClip clip))
+            if (Instance.overrides.TryGetValue(sfx, out List<AudioClip> variants) && variants.Count > 0)
+                Instance.effects.PlayOneShot(variants[Random.Range(0, variants.Count)], volume * Instance.effectsVolume);
+            else if (Instance.clips.TryGetValue(sfx, out AudioClip clip))
                 Instance.effects.PlayOneShot(clip, volume * Instance.effectsVolume);
         }
 
         /// <summary>Шаг игрока — каждый раз немного другой высоты, чтобы не звучать механически.</summary>
         public static void PlayStep()
         {
-            if (Instance == null || Instance.stepClip == null) return;
+            if (Instance == null) return;
+            if (Instance.stepVariants.Count > 0)
+            {
+                // Настоящие шаги: случайный вариант и небольшой разброс высоты.
+                Instance.steps.pitch = Random.Range(0.95f, 1.05f);
+                Instance.steps.PlayOneShot(Instance.stepVariants[Random.Range(0, Instance.stepVariants.Count)],
+                    Instance.footstepsVolume);
+                return;
+            }
+            if (Instance.stepClip == null) return;
             Instance.steps.pitch = Random.Range(0.85f, 1.15f);
             Instance.steps.PlayOneShot(Instance.stepClip, Instance.footstepsVolume);
         }
@@ -176,6 +243,9 @@ namespace NaSvyazi.Audio
             // Ошибка: два низких сигнала.
             float[] e1 = Tone(220f, 0.12f, Wave.Square, 0.005f, 0.03f, 0.2f);
             clips[Sfx.Error] = Make("error", Mix(e1, e1, 0.16f));
+
+            // Швабра: короткий мягкий «шорх».
+            clips[Sfx.Scrub] = Make("scrub", LowPass(Noise(0.18f, 0.45f), 0.2f));
 
             // Шаг: приглушённый шум.
             stepClip = Make("step", LowPass(Noise(0.07f, 0.35f), 0.08f));

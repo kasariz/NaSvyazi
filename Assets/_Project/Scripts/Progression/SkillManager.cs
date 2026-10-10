@@ -67,7 +67,21 @@ namespace NaSvyazi.Progression
         private readonly Dictionary<string, int> ranks = new Dictionary<string, int>();
 
         /// <summary>Сколько всего очков заработано: по одному на каждый уровень салона.</summary>
-        public int EarnedPoints => LevelManager.Instance != null ? LevelManager.Instance.Level : 1;
+        /// После максимального уровня очки дают «мастерство» — пока не прокачано всё дерево.
+        public int EarnedPoints => LevelManager.Instance != null
+            ? Mathf.Min(LevelManager.Instance.Level + LevelManager.Instance.MasteryPoints, TotalRanks)
+            : 1;
+
+        /// <summary>Сколько очков нужно, чтобы прокачать всё дерево.</summary>
+        public static int TotalRanks
+        {
+            get
+            {
+                int sum = 0;
+                foreach (SkillDefinition d in Definitions) sum += d.maxRank;
+                return sum;
+            }
+        }
 
         public int SpentPoints
         {
@@ -94,14 +108,10 @@ namespace NaSvyazi.Progression
         private void OnEnable() => GameEvents.LevelChanged += OnLevelChanged;
         private void OnDisable() => GameEvents.LevelChanged -= OnLevelChanged;
 
-        private int lastLevel = -1;
 
         private void OnLevelChanged(int level, int xp, int next)
         {
-            // При загрузке сохранения уровень тоже «растёт» — в первые секунды сцены не сообщаем.
-            if (lastLevel > 0 && level > lastLevel && Time.timeSinceLevelLoad > 1f)
-                GameEvents.Notify($"Уровень салона {level}: получено очко навыка. Откройте навыки — клавиша K.");
-            lastLevel = level;
+            // О новом уровне и очке навыка сообщает баннер в HUD (GameHUD.ShowLevelUp).
             Changed?.Invoke();
         }
 

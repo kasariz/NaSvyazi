@@ -68,6 +68,20 @@ namespace NaSvyazi.Interaction
             body.linearVelocity = velocity;
 
             IsHeld = false;
+            OnDroppedFromHands();
+        }
+
+        /// <summary>Вызывается после броска — для предметов со своей позой в руках (швабра).</summary>
+        protected virtual void OnDroppedFromHands() { }
+
+        /// <summary>
+        /// Свои точки хвата для рук героя (например, черенок швабры).
+        /// false — руки берутся за бока предмета, как за коробку.
+        /// </summary>
+        public virtual bool TryGetGrips(out Vector3 leftGrip, out Vector3 rightGrip)
+        {
+            leftGrip = rightGrip = Vector3.zero;
+            return false;
         }
 
         /// <summary>

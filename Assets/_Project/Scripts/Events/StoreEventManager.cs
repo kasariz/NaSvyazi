@@ -11,6 +11,7 @@ namespace NaSvyazi.Events
         public string id;
         public string name;
         public string announcement;
+        public string effects;                    // коротко для плашки в HUD
 
         public float spawnMultiplier = 1f;        // множитель интервала между покупателями (<1 — чаще)
         public float consultationMultiplier = 1f; // множитель доли клиентов за консультацией
@@ -39,30 +40,35 @@ namespace NaSvyazi.Events
             {
                 id = "black_friday", name = "Чёрная пятница",
                 announcement = "Сегодня «Чёрная пятница»: покупателей будет намного больше, и они берут больше товаров — но ждут скидок.",
+                effects = "Покупателей больше · берут больше · ждут скидок",
                 spawnMultiplier = 0.55f, extraWantedItems = 1, toleranceBonus = -0.08f
             },
             new StoreEvent
             {
                 id = "phone_launch", name = "Выход нового смартфона",
                 announcement = "Вышел новый смартфон! Покупатели охотнее берут смартфоны и аудио и готовы за них переплатить.",
+                effects = "Спрос на смартфоны и аудио · готовы переплатить",
                 spawnMultiplier = 0.8f, favorPhones = true, phoneToleranceBonus = 0.15f, minDay = 4
             },
             new StoreEvent
             {
                 id = "rain", name = "Дождливый день",
                 announcement = "На улице ливень: покупателей меньше, зато чаще заходят подобрать тариф.",
+                effects = "Покупателей меньше · больше консультаций · пол грязнее",
                 spawnMultiplier = 1.4f, consultationMultiplier = 1.8f
             },
             new StoreEvent
             {
                 id = "supplier_delay", name = "Сбой у поставщика",
                 announcement = "У поставщика сбой: доставка сегодня идёт втрое дольше. Заказывайте заранее!",
+                effects = "Доставка в 3 раза дольше",
                 deliveryMultiplier = 3f
             },
             new StoreEvent
             {
                 id = "student_day", name = "День студента",
                 announcement = "Сегодня день студента: много покупателей с ограниченным бюджетом — цены выше рынка их отпугнут.",
+                effects = "Много покупателей · дорогие цены отпугивают",
                 spawnMultiplier = 0.75f, toleranceBonus = -0.12f, consultationMultiplier = 1.3f
             },
         };
@@ -97,6 +103,7 @@ namespace NaSvyazi.Events
         private static StoreEvent Active => Instance != null ? Instance.Current : null;
 
         public static string CurrentName => Active != null ? Active.name : null;
+        public static string CurrentEffects => Active != null ? Active.effects : null;
         public static string CurrentId => Active != null ? Active.id : null;
         public static float SpawnMultiplier => Active != null ? Active.spawnMultiplier : 1f;
         public static float ConsultationMultiplier => Active != null ? Active.consultationMultiplier : 1f;

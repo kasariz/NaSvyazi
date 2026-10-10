@@ -292,7 +292,7 @@ namespace NaSvyazi.UI
             if (lm != null)
             {
                 levelText.text = lm.IsMaxLevel
-                    ? $"<b>Уровень салона {lm.Level}</b>   ·   максимальный"
+                    ? $"<b>Уровень салона {lm.Level}</b>   ·   максимальный   ·   мастерство {lm.MasteryProgress} из {lm.MasteryStep} (очко навыка)"
                     : $"<b>Уровень салона {lm.Level}</b>   ·   опыт {lm.Xp} из {lm.XpForNextLevel}";
                 float fill = lm.IsMaxLevel || lm.XpForNextLevel <= 0 ? 1f : Mathf.Clamp01((float)lm.Xp / lm.XpForNextLevel);
                 levelBar.rectTransform.anchorMax = new Vector2(fill, 1f);

@@ -36,7 +36,8 @@ namespace NaSvyazi.Store
             if (!(interactor.Carry.Held is Mop)) return;
 
             left--;
-            SoundManager.Play(Sfx.Pickup, 0.15f);
+            ((Mop)interactor.Carry.Held).Scrub(transform.position);
+            SoundManager.Play(Sfx.Scrub, 0.35f);
             if (left <= 0)
             {
                 if (CleaningManager.Instance != null) CleaningManager.Instance.OnCleaned(this);

@@ -206,6 +206,11 @@ namespace NaSvyazi.Store
             else
                 GameEvents.Notify($"День {Day}. Подготовьте салон и откройте его табличкой у входа.");
 
+            // Событие нового дня (объявляется после приветствия, чтобы его не перекрыло).
+            // Раньше событие выбиралось только при запуске сцены (день 1), а события доступны
+            // с 3-го дня — поэтому «Чёрная пятница» и другие никогда не наступали.
+            if (StoreEventManager.Instance != null) StoreEventManager.Instance.RollForDay(Day);
+
             if (Save.SaveSystem.Instance != null) Save.SaveSystem.Instance.Save();
         }
 

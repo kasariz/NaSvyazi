@@ -75,6 +75,9 @@ namespace NaSvyazi.UI
             if (report.theftItems > 0 || report.thievesCaught > 0)
                 s.Append($"\nУкрадено товаров:  {report.theftItems} на {EconomyManager.Format(report.theftLoss)}" +
                          $"   ·   задержано воришек:  {report.thievesCaught}");
+            int skillPoints = Progression.SkillManager.Instance != null ? Progression.SkillManager.Instance.AvailablePoints : 0;
+            if (skillPoints > 0)
+                s.Append($"\n\n<color=#DB2E8C><b>Не потрачено очков навыков: {skillPoints}</b> — нажмите K утром</color>");
             serviceText.text = s.ToString();
 
             profitText.text = $"Прибыль за день: {EconomyManager.Format(report.Profit)}";
