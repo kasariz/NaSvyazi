@@ -84,6 +84,7 @@ namespace NaSvyazi.Customers
         private float stateTimer;
         private float patienceTimer;
         private float bubbleTimer;
+        private SpeechBubble speech;
         private int queueIndex = -1;
         private bool beingServed;
         private bool impulseChecked;
@@ -132,7 +133,11 @@ namespace NaSvyazi.Customers
                 bodyRenderer.SetPropertyBlock(block);
             }
 
-            if (bubble != null) bubble.text = "";
+            if (bubble != null)
+            {
+                bubble.text = "";
+                speech = new SpeechBubble(bubble);
+            }
         }
 
         /// <summary>Инициализация покупателя, пришедшего за товарами.</summary>
@@ -584,6 +589,9 @@ namespace NaSvyazi.Customers
             Camera cam = Camera.main;
             if (bubble != null && cam != null && bubble.text.Length > 0)
                 bubble.transform.rotation = Quaternion.LookRotation(bubble.transform.position - cam.transform.position);
+
+            // Плашка под репликой подгоняется под текст (только когда текст сменился).
+            if (speech != null) speech.Refresh();
         }
 
         private void OnDestroy()

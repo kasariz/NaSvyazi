@@ -22,8 +22,8 @@ namespace NaSvyazi.Store
         [SerializeField] private int openHour = 9;
         [SerializeField] private int closeHour = 21;
 
-        [Tooltip("Сколько реальных секунд длится одна игровая минута (0.75 → день ≈ 9 минут)")]
-        [SerializeField] private float realSecondsPerGameMinute = 0.75f;
+        [Tooltip("Сколько реальных секунд длится одна игровая минута (0.4 → день с 9:00 до 21:00 ≈ 5 минут)")]
+        [SerializeField] private float secondsPerGameMinute = 0.4f;
 
         [Tooltip("Базовая аренда и коммунальные платежи за день, руб.")]
         [SerializeField] private int dailyRent = 800;
@@ -32,7 +32,7 @@ namespace NaSvyazi.Store
         [SerializeField] private int rentPerLevel = 300;
 
         [Tooltip("Если покупатели не ушли за это время после закрытия, день завершается принудительно")]
-        [SerializeField] private float closingTimeout = 120f;
+        [SerializeField] private float closingTimeout = 60f;
 
         [SerializeField] private DayReportUI reportUI;
 
@@ -85,7 +85,7 @@ namespace NaSvyazi.Store
         {
             if (Phase == DayPhase.Open)
             {
-                Minutes += Time.deltaTime / realSecondsPerGameMinute;
+                Minutes += Time.deltaTime / secondsPerGameMinute;
                 if ((int)Minutes != lastMinute) RaiseTime();
 
                 if (Minutes >= closeHour * 60) BeginClosing("Рабочий день окончен");

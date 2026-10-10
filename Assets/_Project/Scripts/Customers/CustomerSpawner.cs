@@ -27,8 +27,8 @@ namespace NaSvyazi.Customers
         [SerializeField] private TariffCatalog tariffCatalog;
 
         [Header("Поток покупателей")]
-        [Tooltip("Интервал между покупателями, сек (мин, макс)")]
-        [SerializeField] private Vector2 spawnInterval = new Vector2(8f, 16f);
+        [Tooltip("Интервал между покупателями, сек (мин, макс) — подобран под день ≈ 5 минут")]
+        [SerializeField] private Vector2 customerInterval = new Vector2(5f, 10f);
         [SerializeField] private int maxCustomers = 6;
 
         [Tooltip("Сколько разных товаров хочет купить один покупатель (мин, макс)")]
@@ -65,7 +65,7 @@ namespace NaSvyazi.Customers
 
             // Чем выше репутация, тем чаще приходят покупатели.
             // Рекламные стенды тоже привлекают покупателей.
-            timer = Random.Range(spawnInterval.x, spawnInterval.y) * ReputationManager.SpawnIntervalMultiplier
+            timer = Random.Range(customerInterval.x, customerInterval.y) * ReputationManager.SpawnIntervalMultiplier
                     * Building.FurnitureEffect.SpawnIntervalMultiplier
                     * SkillManager.SpawnIntervalMultiplier      // навык «Сарафанное радио»
                     * StoreEventManager.SpawnMultiplier;        // событие дня (например, «Чёрная пятница»)

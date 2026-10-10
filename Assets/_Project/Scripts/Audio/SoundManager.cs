@@ -119,7 +119,13 @@ namespace NaSvyazi.Audio
 
         private void OnDestroy()
         {
-            if (Instance == this) Instance = null;
+            // Если в сцене остался другой менеджер звука (например, при выгрузке меню), переключаемся на него.
+            if (Instance == this)
+            {
+                Instance = null;
+                foreach (SoundManager other in FindObjectsByType<SoundManager>(FindObjectsSortMode.None))
+                    if (other != this) Instance = other;
+            }
         }
 
         /// <summary>Проиграть эффект (если звуковая система есть на сцене).</summary>
