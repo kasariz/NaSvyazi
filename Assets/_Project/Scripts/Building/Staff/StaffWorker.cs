@@ -219,7 +219,7 @@ namespace NaSvyazi.Building
 
         private GameObject BuildPrimitiveBody()
         {
-            GameObject body = GameObject.CreatePrimitive(PrimitiveType.Capsule);
+            GameObject body = Core.RuntimeMaterials.CreatePrimitive(PrimitiveType.Capsule);
             Destroy(body.GetComponent<Collider>());
             body.name = "Body";
             body.transform.SetParent(transform, false);
@@ -243,7 +243,7 @@ namespace NaSvyazi.Building
 
         protected static GameObject PrimitiveProp(PrimitiveType type, Vector3 scale, Color color)
         {
-            GameObject go = GameObject.CreatePrimitive(type);
+            GameObject go = Core.RuntimeMaterials.CreatePrimitive(type);
             go.transform.localScale = scale;
             MaterialPropertyBlock block = new MaterialPropertyBlock();
             block.SetColor(BaseColorId, color);

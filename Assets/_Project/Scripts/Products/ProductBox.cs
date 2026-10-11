@@ -88,7 +88,7 @@ namespace NaSvyazi.Products
             boxRenderer = mesh.GetComponent<Renderer>();
 
             Vector3 size = mesh.localScale;
-            GameObject band = GameObject.CreatePrimitive(PrimitiveType.Cube);
+            GameObject band = Core.RuntimeMaterials.CreatePrimitive(PrimitiveType.Cube);
             band.name = "Band";
             Destroy(band.GetComponent<Collider>());
             band.transform.SetParent(transform, false);

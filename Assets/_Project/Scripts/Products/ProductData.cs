@@ -67,7 +67,7 @@ namespace NaSvyazi.Products
             }
             else
             {
-                model = GameObject.CreatePrimitive(PrimitiveType.Cube);
+                model = Core.RuntimeMaterials.CreatePrimitive(PrimitiveType.Cube);
                 model.transform.SetParent(root.transform, false);
                 model.transform.localScale = size;
                 model.transform.localPosition = new Vector3(0f, size.y * 0.5f, 0f);

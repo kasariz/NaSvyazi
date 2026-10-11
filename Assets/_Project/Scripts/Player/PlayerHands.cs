@@ -95,7 +95,7 @@ namespace NaSvyazi.Player
 
         private static Transform Part(PrimitiveType type, Transform parent, Color color)
         {
-            GameObject go = GameObject.CreatePrimitive(type);
+            GameObject go = Core.RuntimeMaterials.CreatePrimitive(type);
             Destroy(go.GetComponent<Collider>());
             go.transform.SetParent(parent, false);
             Renderer r = go.GetComponent<Renderer>();

@@ -107,7 +107,7 @@ namespace NaSvyazi.Store
 
         private void Spawn(Vector3 position)
         {
-            GameObject go = GameObject.CreatePrimitive(PrimitiveType.Quad);
+            GameObject go = Core.RuntimeMaterials.CreatePrimitive(PrimitiveType.Quad);
             go.name = "DirtSpot";
             Destroy(go.GetComponent<Collider>());
             go.transform.SetPositionAndRotation(position, Quaternion.Euler(90f, Random.Range(0f, 360f), 0f));

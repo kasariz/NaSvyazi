@@ -164,7 +164,7 @@ namespace NaSvyazi.Store
 
         private Transform Part(PrimitiveType type, Vector3 position, Vector3 scale, Color color)
         {
-            GameObject go = GameObject.CreatePrimitive(type);
+            GameObject go = Core.RuntimeMaterials.CreatePrimitive(type);
             go.transform.SetParent(body, false);
             go.transform.localPosition = position;
             go.transform.localScale = scale;

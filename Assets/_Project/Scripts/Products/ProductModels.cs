@@ -162,7 +162,7 @@ namespace NaSvyazi.Products
         private static void Part(PrimitiveType type, Transform parent, Vector3 position, Vector3 scale, Color color,
             Quaternion rotation)
         {
-            GameObject go = GameObject.CreatePrimitive(type);
+            GameObject go = Core.RuntimeMaterials.CreatePrimitive(type);
             go.transform.SetParent(parent, false);
             go.transform.localPosition = position;
             go.transform.localRotation = rotation;
